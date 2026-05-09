@@ -13,6 +13,10 @@ return new class extends Migration
     {
         Schema::create('risk_events', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->string('type', 80);
+            $table->unsignedTinyInteger('score_delta')->default(0);
+            $table->json('payload')->nullable();
             $table->timestamps();
         });
     }

@@ -13,6 +13,11 @@ return new class extends Migration
     {
         Schema::create('games', function (Blueprint $table) {
             $table->id();
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->enum('status', ['active', 'inactive', 'retired'])->default('active');
+            $table->decimal('rtp_percentage', 5, 2)->default(95.00);
+            $table->json('config')->nullable();
             $table->timestamps();
         });
     }
