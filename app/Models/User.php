@@ -26,6 +26,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property Carbon|null $updated_at
  * @property-read Collection<int, Wallet> $wallets
  * @property-read Collection<int, Transaction> $transactions
+ * @property-read Collection<int, DepositInvoice> $depositInvoices
  * @property-read Collection<int, Bet> $bets
  * @property-read Collection<int, RiskEvent> $riskEvents
  * @property-read Collection<int, Intervention> $interventions
@@ -53,6 +54,14 @@ class User extends Authenticatable
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    /**
+     * @return HasMany<DepositInvoice, $this>
+     */
+    public function depositInvoices(): HasMany
+    {
+        return $this->hasMany(DepositInvoice::class);
     }
 
     /**
