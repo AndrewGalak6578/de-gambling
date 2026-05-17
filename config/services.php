@@ -35,4 +35,16 @@ return [
         ],
     ],
 
+    'payment_provider' => [
+        'name' => env('PAYMENT_PROVIDER_NAME', 'settlane'),
+        'base_url' => env('PAYMENT_PROVIDER_BASE_URL', 'https://settlane.tech/api/v1'),
+        'api_key' => env('PAYMENT_PROVIDER_API_KEY'),
+        'api_key_header' => env('PAYMENT_PROVIDER_API_KEY_HEADER', 'Authorization'),
+        'api_key_prefix' => env('PAYMENT_PROVIDER_API_KEY_PREFIX', 'Bearer '),
+        'deposit_invoice_path' => env('PAYMENT_PROVIDER_DEPOSIT_INVOICE_PATH', '/invoices'),
+        'timeout' => env('PAYMENT_PROVIDER_TIMEOUT', 10),
+        'webhook_secret' => env('PAYMENT_PROVIDER_WEBHOOK_SECRET'),
+        'webhook_signature_header' => env('PAYMENT_PROVIDER_WEBHOOK_SIGNATURE_HEADER', 'X-Webhook-Signature'),
+    ],
+
 ];

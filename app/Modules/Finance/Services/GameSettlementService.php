@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 class GameSettlementService implements GameSettlementServiceInterface
 {
+    private const INTERNAL_CURRENCY = 'USD';
+
     public function __construct(
         private WalletBalanceService $walletBalanceService,
         private TransactionLogService $transactionLogService,
@@ -17,7 +19,7 @@ class GameSettlementService implements GameSettlementServiceInterface
     public function settleBet(int $userId, int $gameId, string $betAmount, string $payoutAmount, array $result): void
     {
         DB::transaction(function () use ($userId, $gameId, $betAmount, $payoutAmount, $result) {
-            $walletId = $this->walletBalanceService->decreaseBalance($userId, $betAmount, 'USDT');
+            $walletId = $this->walletBalanceService->decreaseBalance($userId, $betAmount, self::INTERNAL_CURRENCY);
 
             $this->transactionLogService->record(
                 userId: $userId,
@@ -25,7 +27,7 @@ class GameSettlementService implements GameSettlementServiceInterface
                 type: TransactionType::BetDebit,
                 status: TransactionStatus::Confirmed,
                 amount: $betAmount,
-                currency: 'USDT',
+                currency: self::INTERNAL_CURRENCY,
                 reason: 'game_bet',
                 meta: [
                     'game_id' => $gameId,
@@ -34,7 +36,7 @@ class GameSettlementService implements GameSettlementServiceInterface
             );
 
             if (bccomp($payoutAmount, '0', 8) > 0) {
-                $walletId = $this->walletBalanceService->increaseBalance($userId, $payoutAmount, 'USDT');
+                $walletId = $this->walletBalanceService->increaseBalance($userId, $payoutAmount, self::INTERNAL_CURRENCY);
 
                 $this->transactionLogService->record(
                     userId: $userId,
@@ -42,7 +44,7 @@ class GameSettlementService implements GameSettlementServiceInterface
                     type: TransactionType::BetPayout,
                     status: TransactionStatus::Confirmed,
                     amount: $payoutAmount,
-                    currency: 'USDT',
+                    currency: self::INTERNAL_CURRENCY,
                     reason: 'game_payout',
                     meta: [
                         'game_id' => $gameId,

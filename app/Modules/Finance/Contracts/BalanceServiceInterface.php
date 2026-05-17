@@ -7,7 +7,7 @@ use App\Modules\Finance\Enums\TransactionType;
 
 interface BalanceServiceInterface
 {
-    public function getBalance(int $userId, string $currency = 'USDT'): string;
+    public function getBalance(int $userId, string $currency = 'USD'): string;
 
     public function debit(
         int $userId,

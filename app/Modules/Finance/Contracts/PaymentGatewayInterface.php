@@ -9,7 +9,8 @@ interface PaymentGatewayInterface
      *     amount_usd: string,
      *     coin: string,
      *     expires_minutes: int,
-     *     external_id?: string|null
+     *     external_id?: string|null,
+     *     metadata?: array<string, mixed>
      * }  $payload
      * @return array{
      *     provider_invoice_id: string,

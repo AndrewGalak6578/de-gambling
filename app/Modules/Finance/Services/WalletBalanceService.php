@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 
 class WalletBalanceService
 {
-    public function getBalance(int $userId, string $currency = 'USDT'): string
+    public function getBalance(int $userId, string $currency = 'USD'): string
     {
         $wallet = DB::table('wallets')
             ->where('user_id', $userId)

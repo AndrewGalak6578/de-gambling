@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Finance\Controllers\PaymentWebhookController;
 use App\Modules\Finance\Controllers\TransactionController;
 use App\Modules\Finance\Controllers\WalletController;
 use App\Modules\Game\Controllers\GameController;
@@ -10,6 +11,8 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/payments/webhook', PaymentWebhookController::class);
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);

@@ -14,7 +14,7 @@ class BalanceService implements BalanceServiceInterface
         private TransactionLogService $transactionLogService,
     ) {}
 
-    public function getBalance(int $userId, string $currency = 'USDT'): string
+    public function getBalance(int $userId, string $currency = 'USD'): string
     {
         return $this->walletBalanceService->getBalance($userId, $currency);
     }
