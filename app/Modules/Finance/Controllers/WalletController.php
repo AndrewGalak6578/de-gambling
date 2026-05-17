@@ -12,8 +12,8 @@ class WalletController extends Controller
     public function show(Request $request, BalanceServiceInterface $balanceService): JsonResponse
     {
         return response()->json([
-            'currency' => 'USDT',
-            'balance' => $balanceService->getBalance($request->user()->id),
+            'currency' => 'USD',
+            'balance' => $balanceService->getBalance($request->user()->id, 'USD'),
         ]);
     }
 }
