@@ -97,6 +97,7 @@ class ConfiguredPaymentGateway implements PaymentGatewayInterface
      *     event: string,
      *     provider_invoice_id?: string|null,
      *     provider_public_id?: string|null,
+     *     external_id?: string|null,
      *     status?: string|null,
      *     payload: array<string, mixed>
      * }
@@ -105,12 +106,20 @@ class ConfiguredPaymentGateway implements PaymentGatewayInterface
     {
         $data = $payload['data'] ?? $payload;
         $data = is_array($data) ? $data : [];
+        $invoice = $data;
+
+        if (isset($payload['invoice']) && is_array($payload['invoice'])) {
+            $invoice = $payload['invoice'];
+        } elseif (isset($data['invoice']) && is_array($data['invoice'])) {
+            $invoice = $data['invoice'];
+        }
 
         return [
             'event' => (string) ($payload['event'] ?? $payload['type'] ?? ''),
-            'provider_invoice_id' => isset($data['id']) ? (string) $data['id'] : null,
-            'provider_public_id' => isset($data['public_id']) ? (string) $data['public_id'] : null,
-            'status' => isset($data['status']) ? strtolower((string) $data['status']) : null,
+            'provider_invoice_id' => isset($invoice['id']) ? (string) $invoice['id'] : null,
+            'provider_public_id' => isset($invoice['public_id']) ? (string) $invoice['public_id'] : null,
+            'external_id' => isset($invoice['external_id']) ? (string) $invoice['external_id'] : null,
+            'status' => isset($invoice['status']) ? strtolower((string) $invoice['status']) : null,
             'payload' => $payload,
         ];
     }

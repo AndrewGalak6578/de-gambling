@@ -37,6 +37,7 @@ interface PaymentGatewayInterface
      *     event: string,
      *     provider_invoice_id?: string|null,
      *     provider_public_id?: string|null,
+     *     external_id?: string|null,
      *     status?: string|null,
      *     payload: array<string, mixed>
      * }

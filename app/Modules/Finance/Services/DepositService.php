@@ -63,6 +63,7 @@ class DepositService
      *     event: string,
      *     provider_invoice_id?: string|null,
      *     provider_public_id?: string|null,
+     *     external_id?: string|null,
      *     status?: string|null,
      *     payload: array<string, mixed>
      * }  $webhook
@@ -120,6 +121,8 @@ class DepositService
             $query->where('provider_invoice_id', $webhook['provider_invoice_id']);
         } elseif (! empty($webhook['provider_public_id'])) {
             $query->where('provider_public_id', $webhook['provider_public_id']);
+        } elseif (! empty($webhook['external_id'])) {
+            $query->where('external_id', $webhook['external_id']);
         } else {
             throw new ModelNotFoundException('Webhook does not identify a deposit invoice.');
         }
