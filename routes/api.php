@@ -1,7 +1,9 @@
 <?php
 
 use App\Modules\Admin\Controllers\UserManagementController;
+use App\Modules\Finance\Controllers\AdminWithdrawalController;
 use App\Modules\Finance\Controllers\PaymentWebhookController;
+use App\Modules\ResponsibleGambling\Controllers\AdminRiskController;
 use App\Modules\User\Controllers\UserRestrictionController;
 use App\Modules\User\Controllers\WalletController as UserWalletController;
 use App\Modules\User\Controllers\SelfExclusionController;
@@ -51,6 +53,13 @@ Route::prefix('v1')->group(function () {
             Route::patch('/admin/users/{user}/disable', [UserManagementController::class, 'disable']);
 
             Route::delete('/admin/users/{user}', [UserManagementController::class, 'destroy']);
+
+            Route::get('/admin/withdrawals', [AdminWithdrawalController::class, 'index']);
+            Route::patch('/admin/withdrawals/{transaction}/approve', [AdminWithdrawalController::class, 'approve']);
+            Route::patch('/admin/withdrawals/{transaction}/reject', [AdminWithdrawalController::class, 'reject']);
+
+            Route::get('/admin/risk-events', [AdminRiskController::class, 'events']);
+            Route::get('/admin/interventions', [AdminRiskController::class, 'activeInterventions']);
         });
     });
 });
