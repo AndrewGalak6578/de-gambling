@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Admin\Controllers\UserManagementController;
+use App\Modules\Finance\Controllers\PaymentWebhookController;
 use App\Modules\User\Controllers\UserRestrictionController;
 use App\Modules\User\Controllers\WalletController as UserWalletController;
 use App\Modules\User\Controllers\SelfExclusionController;
@@ -17,6 +18,7 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/payments/webhook', PaymentWebhookController::class);
 
     Route::middleware(['auth:sanctum', EnsureUserIsActive::class])->group(function () {
 
