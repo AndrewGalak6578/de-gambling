@@ -13,21 +13,14 @@ class UserRoleSeeder extends Seeder
      */
     public function run(): void
     {
-        $adminRole = Role::where('slug', 'admin')->first();
         $userRole = Role::where('slug', 'user')->first();
 
-        $adminUser = User::where('email', 'pranav@test.com')->first();
-
-        if ($adminUser && $adminRole) {
-            $adminUser->roles()->attach($adminRole->id);
+        if (! $userRole) {
+            return;
         }
 
-        $users = User::where('email', '!=', 'pranav@test.com')->get();
-
-        foreach ($users as $user) {
-            if ($userRole) {
-                $user->roles()->attach($userRole->id);
-            }
-        }
+        User::whereDoesntHave('roles')->each(
+            fn (User $user) => $user->roles()->syncWithoutDetaching([$userRole->id]),
+        );
     }
 }

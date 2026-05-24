@@ -12,7 +12,7 @@ class AdminMiddleware
     {
         $user = $request->user();
 
-        if (!$user || !$user->roles()->where('slug', 'admin')->exists()) {
+        if (! $user || ! $user->hasRole('admin')) {
             return response()->json([
                 'message' => 'Forbidden. Admin access required.',
             ], 403);
