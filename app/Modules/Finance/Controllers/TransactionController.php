@@ -5,14 +5,21 @@ namespace App\Modules\Finance\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Finance\Data\CreateDepositInvoiceData;
 use App\Modules\Finance\Requests\CreateDepositInvoiceRequest;
+use App\Modules\Finance\Requests\CreateWithdrawalRequest;
 use App\Modules\Finance\Services\DepositService;
+use App\Modules\Finance\Services\WithdrawalService;
+use App\Modules\ResponsibleGambling\Services\ResponsibleGamblingService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class TransactionController extends Controller
 {
-    public function deposit(CreateDepositInvoiceRequest $request, DepositService $depositService): JsonResponse
-    {
+    public function deposit(
+        CreateDepositInvoiceRequest $request,
+        DepositService $depositService,
+        ResponsibleGamblingService $responsibleGamblingService,
+    ): JsonResponse {
+        $responsibleGamblingService->ensureCanDeposit($request->user());
+
         $invoice = $depositService->createInvoice(
             $request->user(),
             CreateDepositInvoiceData::fromArray($request->validated()),
@@ -23,8 +30,20 @@ class TransactionController extends Controller
         ], 201);
     }
 
-    public function withdraw(Request $request): JsonResponse
+    public function withdraw(CreateWithdrawalRequest $request, WithdrawalService $withdrawalService): JsonResponse
     {
-        return response()->json(['message' => 'Withdrawal request placeholder. Andrew implements settlement checks here.'], 202);
+        $data = $request->validated();
+
+        $withdrawal = $withdrawalService->requestWithdrawal(
+            user: $request->user(),
+            amount: (string) $data['amount'],
+            destination: $data['destination'],
+            providerMethod: $data['provider_method'] ?? null,
+            metadata: $data['metadata'] ?? [],
+        );
+
+        return response()->json([
+            'withdrawal' => $withdrawal,
+        ], 202);
     }
 }

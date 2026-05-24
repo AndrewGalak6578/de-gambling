@@ -3,13 +3,21 @@
 namespace App\Modules\User\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\ResponsibleGambling\Services\ResponsibleGamblingService;
+use App\Modules\ResponsibleGambling\Services\RiskScoreService;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request)
+    public function index(
+        Request $request,
+        RiskScoreService $riskScoreService,
+        ResponsibleGamblingService $responsibleGamblingService,
+    )
     {
         $user = $request->user();
+        $selfExclusion = $responsibleGamblingService->activeBlockingIntervention($user->id, ['self_exclusion']);
+        $circuitBreaker = $responsibleGamblingService->activeBlockingIntervention($user->id, ['circuit_breaker']);
 
         return response()->json([
             'user' => [
@@ -19,9 +27,10 @@ class DashboardController extends Controller
             ],
 
             'dashboard' => [
-                'risk_score' => 0,
-                'self_excluded' => false,
-                'cool_off_active' => false,
+                'risk_score' => $riskScoreService->calculateForUser($user->id),
+                'self_excluded' => $selfExclusion !== null,
+                'cool_off_active' => $circuitBreaker !== null,
+                'active_intervention' => $circuitBreaker ?? $selfExclusion,
             ],
         ]);
     }

@@ -8,6 +8,7 @@ use App\Models\Bet;
 use App\Modules\Game\Engines\GameEngineFactory;
 use App\Modules\Game\Services\ProvablyFairService;
 use App\Modules\Finance\Contracts\GameSettlementServiceInterface;
+use App\Modules\ResponsibleGambling\Services\ResponsibleGamblingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,7 +16,8 @@ class GameController extends Controller
 {
     public function __construct(
         private ProvablyFairService $provablyFairService,
-        private GameSettlementServiceInterface $settlementService
+        private GameSettlementServiceInterface $settlementService,
+        private ResponsibleGamblingService $responsibleGamblingService,
     ) {}
 
     public function index(): JsonResponse
@@ -27,6 +29,7 @@ class GameController extends Controller
     {
         $game = Game::where('status', 'active')->findOrFail($gameId);
         $user = $request->user();
+        $this->responsibleGamblingService->ensureCanBet($user);
 
         // Check for an active unfinished bet
         $activeBet = Bet::where('user_id', $user->id)
@@ -79,7 +82,7 @@ class GameController extends Controller
         $bet->game_id = $game->id;
         $bet->bet_amount = $amount;
         $bet->payout_amount = $isFinished ? $payoutAmount : '0';
-        $bet->currency = 'USDT';
+        $bet->currency = 'USD';
         $bet->status = $isFinished ? 'settled' : 'pending';
         $bet->server_seed_hash = $serverSeedHash;
         $bet->client_seed = $clientSeed;
@@ -99,6 +102,8 @@ class GameController extends Controller
                 $payoutAmount,
                 $bet->result
             );
+
+            $this->responsibleGamblingService->analyzeSettledBet($bet);
         }
 
         return response()->json([

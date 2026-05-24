@@ -17,8 +17,8 @@ class TransactionLogService
         string $currency,
         string $reason,
         array $meta = [],
-    ): void {
-        DB::table('transactions')->insert([
+    ): int {
+        return DB::table('transactions')->insertGetId([
             'user_id' => $userId,
             'wallet_id' => $walletId,
             'type' => $type->value,
