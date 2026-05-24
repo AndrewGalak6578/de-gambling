@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -26,14 +27,21 @@ use Laravel\Sanctum\HasApiTokens;
  * @property Carbon|null $updated_at
  * @property-read Collection<int, Wallet> $wallets
  * @property-read Collection<int, Transaction> $transactions
- * @property-read Collection<int, DepositInvoice> $depositInvoices
  * @property-read Collection<int, Bet> $bets
  * @property-read Collection<int, RiskEvent> $riskEvents
  * @property-read Collection<int, Intervention> $interventions
  * @property-read Collection<int, AdminAction> $adminActions
  * @property-read Collection<int, AdminAction> $targetedAdminActions
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable([
+    'name',
+    'email',
+    'password',
+    'wallet_address',
+    'status',
+    'disabled_at',
+    'disabled_reason',
+])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -54,14 +62,6 @@ class User extends Authenticatable
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
-    }
-
-    /**
-     * @return HasMany<DepositInvoice, $this>
-     */
-    public function depositInvoices(): HasMany
-    {
-        return $this->hasMany(DepositInvoice::class);
     }
 
     /**
@@ -102,6 +102,14 @@ class User extends Authenticatable
     public function targetedAdminActions(): MorphMany
     {
         return $this->morphMany(AdminAction::class, 'target');
+    }
+
+    /**
+     * @return BelongsToMany<Role, $this>
+     */
+    public function roles(): BelongsToMany
+    {
+        return $this->belongsToMany(Role::class);
     }
 
     /**
