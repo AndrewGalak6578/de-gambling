@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Admin\Controllers\AdminGameController;
 use App\Modules\Admin\Controllers\UserManagementController;
 use App\Modules\Finance\Controllers\AdminWithdrawalController;
 use App\Modules\Finance\Controllers\PaymentWebhookController;
@@ -60,6 +61,10 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/admin/risk-events', [AdminRiskController::class, 'events']);
             Route::get('/admin/interventions', [AdminRiskController::class, 'activeInterventions']);
+
+            Route::get('/admin/games', [AdminGameController::class, 'index']);
+            Route::patch('/admin/games/{game}/rtp', [AdminGameController::class, 'updateRtp']);
+            Route::patch('/admin/games/{game}/status', [AdminGameController::class, 'updateStatus']);
         });
     });
 });
