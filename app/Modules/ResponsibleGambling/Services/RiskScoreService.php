@@ -30,7 +30,7 @@ class RiskScoreService
 
         $score = ($recentLosses * 5)
             + ($recentDeposits * 10)
-            + ($lossChaseIndex * 60)
+            + ($lossChaseIndex * 50)
             + ($lateNightBets * 3);
 
         return min($score, 100);
@@ -70,12 +70,12 @@ class RiskScoreService
             ->where('user_id', $userId)
             ->where('created_at', '>=', now()->subHours(24))
             ->orderByDesc('created_at')
-            ->limit(3)
+            ->limit(4)
             ->get(['bet_amount', 'payout_amount'])
             ->reverse()
             ->values();
 
-        if ($bets->count() < 3) {
+        if ($bets->count() < 4) {
             return 0;
         }
 
@@ -88,6 +88,6 @@ class RiskScoreService
         $firstAmount = (string) $bets->first()->bet_amount;
         $lastAmount = (string) $bets->last()->bet_amount;
 
-        return bccomp($lastAmount, bcmul($firstAmount, '2', 8), 8) >= 0 ? 1 : 0;
+        return bccomp($lastAmount, bcmul($firstAmount, '3', 8), 8) >= 0 ? 1 : 0;
     }
 }
