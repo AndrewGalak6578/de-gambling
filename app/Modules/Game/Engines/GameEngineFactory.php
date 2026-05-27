@@ -14,7 +14,8 @@ class GameEngineFactory
         switch ($gameSlug) {
             case 'dice':
                 return new DiceEngine();
-            // Extend with other games like SpinToWinEngine, PokerEngine, etc.
+            case 'spin-to-win':
+                return new SpinToWinEngine();
             default:
                 throw new Exception("Game engine not found for slug: {$gameSlug}");
         }

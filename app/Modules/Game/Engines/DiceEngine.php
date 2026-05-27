@@ -45,7 +45,7 @@ class DiceEngine implements GameEngineInterface
         }
 
         return [
-            'payout_multiplier' => $isWin ? $multiplier : 0,
+            'payout_multiplier' => $isWin ? $multiplier : 0.0,
             'state' => ['roll' => $roll, 'is_win' => $isWin],
             'animations' => ['trigger' => 'dice_roll', 'duration' => 2000],
             'is_finished' => true
