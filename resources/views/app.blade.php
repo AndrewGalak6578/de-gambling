@@ -274,7 +274,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
    G-SHT High Roller VIP Club - Single Page Application
    ═══════════════════════════════════════════════════════════════ */
 const API='/api/v1';
-let token=localStorage.getItem('token'),user=null,currentPage='login',sidebarOpen=false,currentRotation=0;
+let token=localStorage.getItem('token'),user=null,currentPage='login',sidebarOpen=false,currentRotation=0,adminSelectedInterventionUserId=null;
 
 /* ── SVG Icon Library ── */
 const icons={
@@ -292,6 +292,11 @@ const icons={
   empty:`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>`
 };
 function icon(name,cls=''){return`<span class="nav-icon ${cls}">${icons[name]||''}</span>`}
+function esc(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+function fmtDate(value){return value?new Date(value).toLocaleString():'Open-ended'}
+function interventionLabel(type){
+  return {admin_bet_block:'Betting block',admin_deposit_block:'Deposit block',admin_win_limit:'Win count limit',admin_cool_off:'Cool-off',self_exclusion:'Self-exclusion',circuit_breaker:'Circuit breaker'}[type]||type
+}
 
 /* ── API Helper ── */
 async function api(path,options={}){
@@ -770,6 +775,7 @@ async function renderAdmin(app){
     <button class="tab active" data-tab="users" onclick="switchAdminTab('users')">Users</button>
     <button class="tab" data-tab="withdrawals" onclick="switchAdminTab('withdrawals')">Withdrawals</button>
     <button class="tab" data-tab="risk" onclick="switchAdminTab('risk')">Risk</button>
+    <button class="tab" data-tab="interventions" onclick="switchAdminTab('interventions')">Interventions</button>
     <button class="tab" data-tab="games" onclick="switchAdminTab('games')">Games</button>
   </div>
   <div id="admin-content"></div>`;
@@ -781,7 +787,8 @@ function switchAdminTab(tab){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
   const content=document.getElementById('admin-content');content.innerHTML='<div class="spinner"></div>';
   if(tab==='users')renderAdminUsers(content);else if(tab==='withdrawals')renderAdminWithdrawals(content);
-  else if(tab==='risk')renderAdminRisk(content);else if(tab==='games')renderAdminGames(content)
+  else if(tab==='risk')renderAdminRisk(content);else if(tab==='interventions')renderAdminInterventions(content);
+  else if(tab==='games')renderAdminGames(content)
 }
 
 async function renderAdminUsers(content){
@@ -792,9 +799,11 @@ async function renderAdminUsers(content){
     <td class="font-mono text-xs">${u.email}</td>
     <td><span class="badge ${u.status==='active'?'badge-green':'badge-red'}">${u.status}</span></td>
     <td class="text-xs">${new Date(u.created_at).toLocaleDateString()}</td>
-    <td class="flex gap-2">${u.status==='active'?`<button onclick="adminDisableUser(${u.id})" class="btn btn-ghost btn-sm">Disable</button>`:''}<button onclick="adminDeleteUser(${u.id})" class="btn btn-danger btn-sm">Delete</button></td>
+    <td class="flex gap-2"><button onclick="openUserInterventions(${u.id})" class="btn btn-gold btn-sm">Limits</button>${u.status==='active'?`<button onclick="adminDisableUser(${u.id})" class="btn btn-ghost btn-sm">Disable</button>`:''}<button onclick="adminDeleteUser(${u.id})" class="btn btn-danger btn-sm">Delete</button></td>
   </tr>`).join('')}</tbody></table></div>`
 }
+
+function openUserInterventions(id){adminSelectedInterventionUserId=id;switchAdminTab('interventions')}
 
 async function adminDisableUser(id){
   showModal({title:'Disable User',description:'Provide an optional reason for disabling this account.',showInput:true,inputLabel:'Reason',inputPlaceholder:'Optional reason',confirmText:'Disable',confirmClass:'btn-danger',onConfirm:async(reason)=>{
@@ -866,6 +875,101 @@ async function renderAdminRisk(content){
       <td class="text-xs">${new Date(e.created_at).toLocaleString()}</td>
     </tr>`).join('')}</tbody></table></div>
   </div>`
+}
+
+async function renderAdminInterventions(content){
+  const usersData=await api('/admin/users');const users=usersData?.users||[];
+  if(users.length&&!users.some(u=>String(u.id)===String(adminSelectedInterventionUserId)))adminSelectedInterventionUserId=users[0].id;
+  const selected=users.find(u=>String(u.id)===String(adminSelectedInterventionUserId));
+  const iData=selected?await api(`/admin/users/${selected.id}/interventions`):{interventions:[]};
+  const interventions=iData?.interventions||[];
+  content.innerHTML=`
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="card card-gold">
+      <h3 class="font-bold mb-3">Target User</h3>
+      <div class="form-group">
+        <label class="label">User</label>
+        <select id="admin-intervention-user" class="input" onchange="adminSelectedInterventionUserId=this.value;renderAdminInterventions(document.getElementById('admin-content'))">
+          ${users.map(u=>`<option value="${u.id}" ${String(u.id)===String(adminSelectedInterventionUserId)?'selected':''}>#${u.id} ${esc(u.name)} (${esc(u.email)})</option>`).join('')}
+        </select>
+      </div>
+      ${selected?`<p class="text-xs" style="color:var(--text-secondary)">Selected account: <strong style="color:var(--text-primary)">${esc(selected.name)}</strong></p>`:`<p class="text-sm" style="color:var(--text-muted)">No users available.</p>`}
+    </div>
+    <div class="card card-gold" style="grid-column:span 2">
+      <h3 class="font-bold mb-3">Apply Intervention</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="form-group"><label class="label">Type</label><select id="admin-intervention-type" class="input" onchange="handleAdminInterventionTypeChange()">
+          <option value="admin_bet_block">Betting block</option>
+          <option value="admin_deposit_block">Deposit block</option>
+          <option value="admin_win_limit">Win count limit</option>
+          <option value="admin_cool_off">Cool-off</option>
+        </select></div>
+        <div class="form-group"><label class="label">Ends At</label><input id="admin-intervention-ends" type="datetime-local" class="input"></div>
+        <div class="form-group admin-win-limit-fields"><label class="label">Max Wins</label><input id="admin-intervention-max-wins" type="number" class="input" min="1" value="5"></div>
+        <div class="form-group admin-win-limit-fields"><label class="label">Window</label><select id="admin-intervention-window" class="input"><option value="day">Calendar day</option><option value="24h">Rolling 24h</option></select></div>
+        <div class="form-group" style="grid-column:1/-1"><label class="label">Reason</label><input id="admin-intervention-reason" type="text" class="input" placeholder="Required audit reason"></div>
+      </div>
+      <button onclick="handleCreateIntervention()" class="btn btn-gold w-full" ${selected?'':'disabled'}>Apply Intervention</button>
+    </div>
+  </div>
+  <div>
+    <h3 class="font-bold mb-3">Intervention History ${selected?`for #${selected.id}`:''}</h3>
+    <div class="table-wrapper"><table><thead><tr><th>ID</th><th>Type</th><th>Status</th><th>Details</th><th>Ends</th><th>Actions</th></tr></thead><tbody>
+      ${interventions.length===0?'<tr><td colspan="6" class="text-center py-4" style="color:var(--text-muted)">No interventions for this user</td></tr>':''}
+      ${interventions.map(i=>renderInterventionRow(i)).join('')}
+    </tbody></table></div>
+  </div>`;
+  handleAdminInterventionTypeChange()
+}
+
+function renderInterventionRow(i){
+  const payload=i.payload||{},details=[];
+  if(payload.max_wins)details.push(`max wins: ${payload.max_wins}`);
+  if(payload.window)details.push(`window: ${payload.window}`);
+  if(payload.reason)details.push(`reason: ${esc(payload.reason)}`);
+  if(payload.revoke_reason)details.push(`revoked: ${esc(payload.revoke_reason)}`);
+  const badge=i.status==='active'?'badge-red':i.status==='revoked'?'badge-gray':'badge-yellow';
+  return `<tr>
+    <td class="font-mono text-xs">${i.id}</td>
+    <td><span class="badge badge-gold">${esc(interventionLabel(i.type))}</span></td>
+    <td><span class="badge ${badge}">${esc(i.status)}</span></td>
+    <td class="text-xs" style="color:var(--text-secondary)">${details.length?details.join('<br>'):'--'}</td>
+    <td class="text-xs">${fmtDate(i.ends_at)}</td>
+    <td>${i.status==='active'?`<button onclick="handleRevokeIntervention(${i.id})" class="btn btn-ghost btn-sm">Revoke</button>`:'<span class="text-xs" style="color:var(--text-muted)">Archived</span>'}</td>
+  </tr>`
+}
+
+function handleAdminInterventionTypeChange(){
+  const type=document.getElementById('admin-intervention-type')?.value;
+  document.querySelectorAll('.admin-win-limit-fields').forEach(el=>el.style.display=type==='admin_win_limit'?'block':'none')
+}
+
+async function handleCreateIntervention(){
+  const userId=document.getElementById('admin-intervention-user')?.value;
+  const type=document.getElementById('admin-intervention-type')?.value;
+  const reason=document.getElementById('admin-intervention-reason')?.value.trim();
+  const endsAt=document.getElementById('admin-intervention-ends')?.value;
+  if(!userId)return showToast('Select a user first.','error');
+  if(!reason)return showToast('Reason is required.','error');
+  const body={type,reason};
+  if(endsAt)body.ends_at=endsAt;
+  if(type==='admin_win_limit'){
+    const maxWins=parseInt(document.getElementById('admin-intervention-max-wins')?.value,10);
+    if(!maxWins||maxWins<1)return showToast('Max wins must be at least 1.','error');
+    body.payload={max_wins:maxWins,window:document.getElementById('admin-intervention-window')?.value||'day'}
+  }
+  const data=await api(`/admin/users/${userId}/interventions`,{method:'POST',body:JSON.stringify(body)});
+  if(data&&!data._status){showToast('Intervention applied.','success');renderAdminInterventions(document.getElementById('admin-content'))}
+  else showToast(data?.message||'Failed to apply intervention.','error')
+}
+
+async function handleRevokeIntervention(id){
+  showModal({title:'Revoke Intervention',description:'The historical record will remain archived.',showInput:true,inputLabel:'Reason',inputPlaceholder:'Required revoke reason',confirmText:'Revoke',confirmClass:'btn-danger',onConfirm:async(reason)=>{
+    if(!reason)return showToast('Reason is required.','error');
+    const data=await api(`/admin/interventions/${id}/revoke`,{method:'PATCH',body:JSON.stringify({reason})});
+    if(data&&!data._status){showToast('Intervention revoked.','info');renderAdminInterventions(document.getElementById('admin-content'))}
+    else showToast(data?.message||'Failed to revoke intervention.','error')
+  }})
 }
 
 async function renderAdminGames(content){
