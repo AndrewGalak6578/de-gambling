@@ -24,6 +24,9 @@ class DashboardController extends Controller
         $circuitBreaker = $responsibleGamblingService
             ->activeBlockingIntervention($user->id, ['circuit_breaker']);
 
+        $activeInterventions = $responsibleGamblingService
+            ->activeInterventions($user->id);
+
         $walletBalance = Wallet::where('user_id', $user->id)
             ->sum('balance');
 
@@ -40,6 +43,7 @@ class DashboardController extends Controller
                 'self_excluded' => $selfExclusion !== null,
                 'cool_off_active' => $circuitBreaker !== null,
                 'active_intervention' => $circuitBreaker ?? $selfExclusion,
+                'active_interventions' => $activeInterventions,
             ],
         ]);
     }

@@ -7,6 +7,7 @@ use App\Models\Intervention;
 use App\Models\RiskEvent;
 use App\Models\User;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Collection;
 
 class ResponsibleGamblingService
 {
@@ -16,16 +17,31 @@ class ResponsibleGamblingService
 
     public function ensureCanBet(User $user): void
     {
-        $intervention = $this->activeBlockingIntervention($user->id, ['self_exclusion', 'circuit_breaker']);
+        $intervention = $this->activeBlockingIntervention($user->id, [
+            'self_exclusion',
+            'circuit_breaker',
+            'admin_bet_block',
+            'admin_cool_off',
+        ]);
 
         if ($intervention !== null) {
             $this->throwBlocked('Betting is paused by an active responsible gambling intervention.');
+        }
+
+        $winLimit = $this->activeWinLimitViolation($user);
+
+        if ($winLimit !== null) {
+            $this->throwBlocked('Betting is paused because the admin win limit has been reached.');
         }
     }
 
     public function ensureCanDeposit(User $user): void
     {
-        $intervention = $this->activeBlockingIntervention($user->id, ['circuit_breaker']);
+        $intervention = $this->activeBlockingIntervention($user->id, [
+            'circuit_breaker',
+            'admin_deposit_block',
+            'admin_cool_off',
+        ]);
 
         if ($intervention !== null) {
             $this->throwBlocked('Deposits are paused by the responsible gambling circuit breaker.');
@@ -63,9 +79,17 @@ class ResponsibleGamblingService
      */
     public function activeBlockingIntervention(int $userId, array $types): ?Intervention
     {
-        return Intervention::query()
+        return $this->activeInterventions($userId, $types)->first();
+    }
+
+    /**
+     * @param  array<int, string>|null  $types
+     * @return Collection<int, Intervention>
+     */
+    public function activeInterventions(int $userId, ?array $types = null): Collection
+    {
+        $query = Intervention::query()
             ->where('user_id', $userId)
-            ->whereIn('type', $types)
             ->where('status', 'active')
             ->where(function ($query) {
                 $query->whereNull('starts_at')
@@ -75,8 +99,13 @@ class ResponsibleGamblingService
                 $query->whereNull('ends_at')
                     ->orWhere('ends_at', '>', now());
             })
-            ->latest()
-            ->first();
+            ->latest();
+
+        if ($types !== null) {
+            $query->whereIn('type', $types);
+        }
+
+        return $query->get();
     }
 
     private function createCircuitBreaker(int $userId, int $score, ?string $riskType): Intervention
@@ -106,5 +135,36 @@ class ResponsibleGamblingService
         throw new HttpResponseException(response()->json([
             'message' => $message,
         ], 423));
+    }
+
+    private function activeWinLimitViolation(User $user): ?Intervention
+    {
+        $limits = $this->activeInterventions($user->id, ['admin_win_limit']);
+
+        foreach ($limits as $limit) {
+            $payload = is_array($limit->payload) ? $limit->payload : [];
+            $maxWins = (int) ($payload['max_wins'] ?? 0);
+
+            if ($maxWins < 1) {
+                continue;
+            }
+
+            $wins = Bet::query()
+                ->where('user_id', $user->id)
+                ->where('status', 'settled')
+                ->whereColumn('payout_amount', '>', 'bet_amount')
+                ->when(($payload['window'] ?? 'day') === '24h', function ($query) {
+                    $query->where('created_at', '>=', now()->subHours(24));
+                }, function ($query) {
+                    $query->whereDate('created_at', now()->toDateString());
+                })
+                ->count();
+
+            if ($wins >= $maxWins) {
+                return $limit;
+            }
+        }
+
+        return null;
     }
 }

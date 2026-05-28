@@ -4,6 +4,7 @@ use App\Modules\Admin\Controllers\AdminGameController;
 use App\Modules\Admin\Controllers\UserManagementController;
 use App\Modules\Finance\Controllers\AdminWithdrawalController;
 use App\Modules\Finance\Controllers\PaymentWebhookController;
+use App\Modules\ResponsibleGambling\Controllers\AdminInterventionController;
 use App\Modules\ResponsibleGambling\Controllers\AdminRiskController;
 use App\Modules\User\Controllers\UserRestrictionController;
 use App\Modules\User\Controllers\WalletController as UserWalletController;
@@ -61,6 +62,9 @@ Route::prefix('v1')->group(function () {
 
             Route::get('/admin/risk-events', [AdminRiskController::class, 'events']);
             Route::get('/admin/interventions', [AdminRiskController::class, 'activeInterventions']);
+            Route::get('/admin/users/{user}/interventions', [AdminInterventionController::class, 'index']);
+            Route::post('/admin/users/{user}/interventions', [AdminInterventionController::class, 'store']);
+            Route::patch('/admin/interventions/{intervention}/revoke', [AdminInterventionController::class, 'revoke']);
 
             Route::get('/admin/games', [AdminGameController::class, 'index']);
             Route::patch('/admin/games/{game}/rtp', [AdminGameController::class, 'updateRtp']);
