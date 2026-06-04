@@ -9,4 +9,5 @@ enum TransactionType: string
     case BetDebit = 'bet_debit';
     case BetPayout = 'bet_payout';
     case SettlementCorrection = 'settlement_correction';
+    case AdminCredit = 'admin_credit';
 }

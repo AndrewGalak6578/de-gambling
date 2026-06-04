@@ -15,12 +15,18 @@ const activeTab = ref('users');
 const users = ref([]);
 const withdrawals = ref([]);
 const riskEvents = ref([]);
+const riskUsers = ref([]);
 const activeInterventions = ref([]);
 const selectedUserId = ref(null);
+const selectedRiskUserId = ref(null);
 const userInterventions = ref([]);
 const games = ref([]);
 const interventionForm = ref({ type: 'admin_bet_block', ends_at: '', max_wins: 5, window: 'day', reason: '' });
+const riskOverrideForm = ref({ score_adjustment: 0, disabled: false, reason: '' });
+const creditForm = ref({ user_id: '', amount: '50.00', reason: '' });
 const selectedUser = computed(() => users.value.find((user) => String(user.id) === String(selectedUserId.value)));
+const creditUser = computed(() => users.value.find((user) => String(user.id) === String(creditForm.value.user_id)));
+const selectedRiskUser = computed(() => riskUsers.value.find((user) => String(user.id) === String(selectedRiskUserId.value)));
 
 onMounted(async () => {
     const data = await api('/admin/users');
@@ -55,6 +61,7 @@ async function loadUsers() {
     const data = await api('/admin/users');
     users.value = data?.users || [];
     if (!selectedUserId.value && users.value.length) selectedUserId.value = users.value[0].id;
+    if (!creditForm.value.user_id && users.value.length) creditForm.value.user_id = users.value[0].id;
 }
 
 async function loadWithdrawals() {
@@ -63,9 +70,14 @@ async function loadWithdrawals() {
 }
 
 async function loadRisk() {
-    const [events, interventions] = await Promise.all([api('/admin/risk-events'), api('/admin/interventions')]);
+    const [events, interventions, summaries] = await Promise.all([api('/admin/risk-events'), api('/admin/interventions'), api('/admin/risk-summaries')]);
     riskEvents.value = events?.risk_events || [];
     activeInterventions.value = interventions?.interventions || [];
+    riskUsers.value = summaries?.users || [];
+    if (riskUsers.value.length && !riskUsers.value.some((user) => String(user.id) === String(selectedRiskUserId.value))) {
+        selectedRiskUserId.value = riskUsers.value[0].id;
+    }
+    syncRiskOverrideForm();
 }
 
 async function loadUserInterventions() {
@@ -85,6 +97,61 @@ async function loadGames() {
 function openUserInterventions(id) {
     selectedUserId.value = id;
     selectTab('interventions');
+}
+
+function openCreditUser(id) {
+    creditForm.value.user_id = id;
+}
+
+async function creditBalance() {
+    if (!creditForm.value.user_id) return showToast('Select a user first.', 'error');
+    if (!creditForm.value.reason.trim()) return showToast('Reason is required.', 'error');
+
+    const data = await api(`/admin/users/${creditForm.value.user_id}/wallet/credit`, {
+        method: 'POST',
+        body: JSON.stringify({
+            amount: creditForm.value.amount,
+            currency: 'USD',
+            reason: creditForm.value.reason,
+        }),
+    });
+
+    if (data && !data._status) {
+        showToast(`Credited $${money(data.amount)} to ${creditUser.value?.name || 'user'}.`, 'success');
+        creditForm.value.reason = '';
+    } else showToast(data?.message || 'Failed to credit balance.', 'error');
+}
+
+function syncRiskOverrideForm() {
+    const override = selectedRiskUser.value?.override || {};
+    riskOverrideForm.value = {
+        score_adjustment: override.score_adjustment ?? 0,
+        disabled: Boolean(override.disabled),
+        reason: override.reason || '',
+    };
+}
+
+async function saveRiskOverride() {
+    if (!selectedRiskUserId.value) return showToast('Select a user first.', 'error');
+
+    const data = await api(`/admin/users/${selectedRiskUserId.value}/risk-override`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+            score_adjustment: Number(riskOverrideForm.value.score_adjustment || 0),
+            disabled: Boolean(riskOverrideForm.value.disabled),
+            reason: riskOverrideForm.value.reason || null,
+        }),
+    });
+
+    if (data && !data._status) {
+        showToast('Risk override saved.', 'success');
+        await loadRisk();
+    } else showToast(data?.message || 'Failed to save risk override.', 'error');
+}
+
+async function resetRiskOverride() {
+    riskOverrideForm.value = { score_adjustment: 0, disabled: false, reason: '' };
+    await saveRiskOverride();
 }
 
 function disableUser(id) {
@@ -250,13 +317,37 @@ function details(intervention) {
                 <button v-for="tab in ['users', 'withdrawals', 'risk', 'interventions', 'games']" :key="tab" :class="['tab', { active: activeTab === tab }]" @click="selectTab(tab)">{{ tab[0].toUpperCase() + tab.slice(1) }}</button>
             </div>
 
-            <div v-if="activeTab === 'users'" class="table-wrapper"><table><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead><tbody>
-                <tr v-for="user in users" :key="user.id">
-                    <td class="font-mono text-xs">{{ user.id }}</td><td class="font-semibold" style="color:var(--text-primary)">{{ user.name }}</td><td class="font-mono text-xs">{{ user.email }}</td>
-                    <td><span :class="['badge', user.status === 'active' ? 'badge-green' : 'badge-red']">{{ user.status }}</span></td><td class="text-xs">{{ new Date(user.created_at).toLocaleDateString() }}</td>
-                    <td class="flex gap-2"><button class="btn btn-gold btn-sm" @click="openUserInterventions(user.id)">Limits</button><button v-if="user.status === 'active'" class="btn btn-ghost btn-sm" @click="disableUser(user.id)">Disable</button><button class="btn btn-danger btn-sm" @click="deleteUser(user.id)">Delete</button></td>
-                </tr>
-            </tbody></table></div>
+            <div v-if="activeTab === 'users'">
+                <form class="card card-gold mb-6" @submit.prevent="creditBalance">
+                    <h3 class="font-bold mb-3">Credit User Balance</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="form-group">
+                            <label class="label">User</label>
+                            <select v-model="creditForm.user_id" class="input">
+                                <option v-for="user in users" :key="user.id" :value="user.id">#{{ user.id }} {{ user.name }} ({{ user.email }})</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="label">Amount (USD)</label>
+                            <input v-model="creditForm.amount" type="number" class="input" min="0.01" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label class="label">Reason</label>
+                            <input v-model="creditForm.reason" type="text" class="input" placeholder="Required audit reason">
+                        </div>
+                        <div class="form-group" style="display:flex;align-items:end">
+                            <button class="btn btn-gold w-full" :disabled="!creditUser">Add Funds</button>
+                        </div>
+                    </div>
+                </form>
+                <div class="table-wrapper"><table><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead><tbody>
+                    <tr v-for="user in users" :key="user.id">
+                        <td class="font-mono text-xs">{{ user.id }}</td><td class="font-semibold" style="color:var(--text-primary)">{{ user.name }}</td><td class="font-mono text-xs">{{ user.email }}</td>
+                        <td><span :class="['badge', user.status === 'active' ? 'badge-green' : 'badge-red']">{{ user.status }}</span></td><td class="text-xs">{{ new Date(user.created_at).toLocaleDateString() }}</td>
+                        <td class="flex gap-2"><button class="btn btn-gold btn-sm" @click="openCreditUser(user.id)">Credit</button><button class="btn btn-ghost btn-sm" @click="openUserInterventions(user.id)">Limits</button><button v-if="user.status === 'active'" class="btn btn-ghost btn-sm" @click="disableUser(user.id)">Disable</button><button class="btn btn-danger btn-sm" @click="deleteUser(user.id)">Delete</button></td>
+                    </tr>
+                </tbody></table></div>
+            </div>
 
             <div v-if="activeTab === 'withdrawals'" class="table-wrapper"><table><thead><tr><th>ID</th><th>User</th><th>Amount</th><th>Status</th><th>Address</th><th>Date</th><th>Actions</th></tr></thead><tbody>
                 <tr v-if="withdrawals.length === 0"><td colspan="7" class="text-center py-4" style="color:var(--text-muted)">No pending withdrawals</td></tr>
@@ -267,6 +358,43 @@ function details(intervention) {
             </tbody></table></div>
 
             <div v-if="activeTab === 'risk'">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                    <div class="card card-gold">
+                        <h3 class="font-bold mb-3">Risk Override</h3>
+                        <div class="form-group">
+                            <label class="label">Player</label>
+                            <select v-model="selectedRiskUserId" class="input" @change="syncRiskOverrideForm">
+                                <option v-for="user in riskUsers" :key="user.id" :value="user.id">#{{ user.id }} {{ user.name }} ({{ user.email }})</option>
+                            </select>
+                        </div>
+                        <div v-if="selectedRiskUser" class="grid grid-cols-2 gap-3">
+                            <div class="dice-stat"><div class="dice-stat-label">Raw Score</div><div class="dice-stat-value">{{ selectedRiskUser.raw_score }}</div></div>
+                            <div class="dice-stat"><div class="dice-stat-label">Effective</div><div class="dice-stat-value gold-text">{{ selectedRiskUser.effective_score }}</div></div>
+                        </div>
+                    </div>
+                    <form class="card" style="grid-column:span 2" @submit.prevent="saveRiskOverride">
+                        <h3 class="font-bold mb-3">Adjust Automation</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="form-group">
+                                <label class="label">Score Adjustment (-100..100)</label>
+                                <input v-model.number="riskOverrideForm.score_adjustment" type="number" class="input" min="-100" max="100">
+                            </div>
+                            <label class="form-group flex items-center gap-3" style="margin-top:1.65rem">
+                                <input v-model="riskOverrideForm.disabled" type="checkbox">
+                                <span class="text-sm" style="color:var(--text-secondary)">Disable risk score automation</span>
+                            </label>
+                            <div class="form-group">
+                                <label class="label">Reason</label>
+                                <input v-model="riskOverrideForm.reason" type="text" class="input" placeholder="Optional audit note">
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="btn btn-gold btn-sm" :disabled="!selectedRiskUser">Save Override</button>
+                            <button type="button" class="btn btn-ghost btn-sm" :disabled="!selectedRiskUser" @click="resetRiskOverride">Reset</button>
+                        </div>
+                        <p v-if="selectedRiskUser?.override?.updated_at" class="text-xs mt-3" style="color:var(--text-muted)">Last updated: {{ new Date(selectedRiskUser.override.updated_at).toLocaleString() }}</p>
+                    </form>
+                </div>
                 <div class="mb-6"><h3 class="font-bold mb-3">Active Interventions ({{ activeInterventions.length }})</h3><div v-if="activeInterventions.length === 0" class="p-4 rounded-lg text-sm text-center" style="background:var(--surface-1);border:1px solid var(--border-subtle);color:var(--text-muted)">All accounts within normal limits.</div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div v-for="item in activeInterventions" :key="item.id" class="card card-gold"><div class="flex items-center justify-between mb-2"><span class="badge badge-red">{{ item.type }}</span><span class="text-xs" style="color:var(--text-secondary)">#{{ item.user_id }} {{ item.user?.name || '' }}</span></div><p class="text-xs" style="color:var(--text-secondary)">{{ item.payload?.message || 'Active hold' }}</p><p class="text-xs mt-2" style="color:var(--text-muted)">Ends: {{ new Date(item.ends_at).toLocaleString() }}</p></div></div>
                 </div>

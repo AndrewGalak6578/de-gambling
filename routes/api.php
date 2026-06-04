@@ -3,6 +3,7 @@
 use App\Modules\Admin\Controllers\AdminGameController;
 use App\Modules\Admin\Controllers\UserManagementController;
 use App\Modules\Finance\Controllers\AdminWithdrawalController;
+use App\Modules\Finance\Controllers\AdminWalletController;
 use App\Modules\Finance\Controllers\PaymentWebhookController;
 use App\Modules\ResponsibleGambling\Controllers\AdminInterventionController;
 use App\Modules\ResponsibleGambling\Controllers\AdminRiskController;
@@ -55,12 +56,15 @@ Route::prefix('v1')->group(function () {
             Route::patch('/admin/users/{user}/disable', [UserManagementController::class, 'disable']);
 
             Route::delete('/admin/users/{user}', [UserManagementController::class, 'destroy']);
+            Route::post('/admin/users/{user}/wallet/credit', [AdminWalletController::class, 'credit']);
 
             Route::get('/admin/withdrawals', [AdminWithdrawalController::class, 'index']);
             Route::patch('/admin/withdrawals/{transaction}/approve', [AdminWithdrawalController::class, 'approve']);
             Route::patch('/admin/withdrawals/{transaction}/reject', [AdminWithdrawalController::class, 'reject']);
 
             Route::get('/admin/risk-events', [AdminRiskController::class, 'events']);
+            Route::get('/admin/risk-summaries', [AdminRiskController::class, 'summaries']);
+            Route::patch('/admin/users/{user}/risk-override', [AdminRiskController::class, 'updateOverride']);
             Route::get('/admin/interventions', [AdminRiskController::class, 'activeInterventions']);
             Route::get('/admin/users/{user}/interventions', [AdminInterventionController::class, 'index']);
             Route::post('/admin/users/{user}/interventions', [AdminInterventionController::class, 'store']);

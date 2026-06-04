@@ -16,6 +16,8 @@ class GameEngineFactory
                 return new DiceEngine();
             case 'spin-to-win':
                 return new SpinToWinEngine();
+            case 'slots':
+                return new SlotsEngine();
             default:
                 throw new Exception("Game engine not found for slug: {$gameSlug}");
         }

@@ -2,11 +2,25 @@
 
 namespace App\Modules\ResponsibleGambling\Services;
 
+use App\Models\RiskScoreOverride;
 use Illuminate\Support\Facades\DB;
 
 class RiskScoreService
 {
     public function calculateForUser(int $userId): int
+    {
+        $override = $this->overrideForUser($userId);
+
+        if ($override?->disabled) {
+            return 0;
+        }
+
+        $score = $this->calculateRawForUser($userId) + (int) ($override?->score_adjustment ?? 0);
+
+        return max(0, min($score, 100));
+    }
+
+    public function calculateRawForUser(int $userId): int
     {
         $recentLosses = DB::table('bets')
             ->where('user_id', $userId)
@@ -43,6 +57,10 @@ class RiskScoreService
 
     public function riskTypeForUser(int $userId): ?string
     {
+        if ($this->overrideForUser($userId)?->disabled) {
+            return null;
+        }
+
         if ($this->lossChaseIndex($userId) > 0) {
             return 'chasing_losses';
         }
@@ -62,6 +80,11 @@ class RiskScoreService
         }
 
         return null;
+    }
+
+    public function overrideForUser(int $userId): ?RiskScoreOverride
+    {
+        return RiskScoreOverride::query()->where('user_id', $userId)->first();
     }
 
     private function lossChaseIndex(int $userId): int

@@ -31,5 +31,17 @@ class GameSeeder extends Seeder
                 'sectors' => 8,
             ],
         ]);
+
+        Game::updateOrCreate(['slug' => 'slots'], [
+            'name' => 'Royal Slots',
+            'status' => 'active',
+            'rtp_percentage' => '95.00',
+            'config' => [
+                'description' => 'Three-reel VIP slot. Match three symbols to win. Crown jackpot pays 1300x.',
+                'min_bet' => '0.10',
+                'max_bet' => '5000.00',
+                'reels' => 3,
+            ],
+        ]);
     }
 }

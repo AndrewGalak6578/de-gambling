@@ -1,6 +1,5 @@
 <script setup>
 import { onMounted, ref } from 'vue';
-import AppIcon from '../components/AppIcon.vue';
 import AppLayout from '../components/AppLayout.vue';
 import PageHeader from '../components/PageHeader.vue';
 import Spinner from '../components/Spinner.vue';
@@ -79,11 +78,11 @@ function riskBadge(score) {
                     </div>
                 </div>
                 <div v-else class="card card-gold">
-                    <h3 class="font-bold mb-2">Quick Play</h3>
-                    <p class="text-sm mb-4" style="color:var(--text-secondary)">Jump straight into your favorite game.</p>
-                    <div class="flex gap-3">
-                        <button class="btn btn-gold btn-sm" @click="navigate('game-play', { gameId: 'dice' })"><AppIcon name="dice" /> Dice</button>
-                        <button class="btn btn-silver btn-sm" @click="navigate('game-play', { gameId: 'spin-to-win' })"><AppIcon name="wheel" /> Spin</button>
+                    <h3 class="font-bold mb-3">Quick Play</h3>
+                    <div class="quick-play-grid">
+                        <div class="quick-play-tile" @click="navigate('game-play', { gameId: 'dice' })"><div class="quick-play-tile-icon">🎲</div>Dice</div>
+                        <div class="quick-play-tile" @click="navigate('game-play', { gameId: 'slots' })"><div class="quick-play-tile-icon">🎰</div>Royal Slots</div>
+                        <div class="quick-play-tile" @click="navigate('game-play', { gameId: 'spin-to-win' })"><div class="quick-play-tile-icon">🎡</div>Spin Wheel</div>
                     </div>
                 </div>
                 <div class="card">

@@ -53,6 +53,10 @@ class ResponsibleGamblingService
         $score = $this->riskScoreService->calculateForUser($bet->user_id);
         $riskType = $this->riskScoreService->riskTypeForUser($bet->user_id);
 
+        if ($this->riskScoreService->overrideForUser($bet->user_id)?->disabled) {
+            return $score;
+        }
+
         if ($riskType !== null) {
             RiskEvent::create([
                 'user_id' => $bet->user_id,
