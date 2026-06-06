@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -29,6 +30,8 @@ use Illuminate\Support\Carbon;
 #[Fillable(['user_id', 'game_id', 'bet_amount', 'payout_amount', 'currency', 'status', 'server_seed_hash', 'client_seed', 'result'])]
 class Bet extends Model
 {
+    use HasFactory;
+
     /**
      * @return BelongsTo<User, $this>
      */

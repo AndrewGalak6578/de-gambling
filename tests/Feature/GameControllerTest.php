@@ -152,7 +152,7 @@ class GameControllerTest extends TestCase
         $response = $this->getJson('/api/v1/games');
 
         $response->assertStatus(200);
-        $response->assertJsonCount(2); // dice + spin-to-win from GameSeeder
+        $response->assertJsonCount(3); // dice + spin-to-win + slots from GameSeeder
     }
 
     public function test_server_seed_is_revealed_in_result(): void
