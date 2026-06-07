@@ -49,6 +49,41 @@ class AdminWalletControllerTest extends TestCase
         ]);
     }
 
+    #[DataProvider('validCreditBoundaryAmounts')]
+    public function test_valid_admin_credit_boundary_amounts_are_accepted(string $amount, string $expectedBalance): void
+    {
+        $user = User::factory()->create();
+        Wallet::factory()->for($user)->create(['balance' => '0.00000000']);
+
+        $this->actingAs($this->adminUser())
+            ->postJson("/api/v1/admin/users/{$user->id}/wallet/credit", [
+                'amount' => $amount,
+                'reason' => 'boundary credit',
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('wallets', [
+            'user_id' => $user->id,
+            'balance' => $expectedBalance,
+        ]);
+        $this->assertDatabaseHas('transactions', [
+            'user_id' => $user->id,
+            'type' => TransactionType::AdminCredit->value,
+            'amount' => $expectedBalance,
+            'reason' => 'boundary credit',
+        ]);
+    }
+
+    public static function validCreditBoundaryAmounts(): array
+    {
+        return [
+            'min boundary' => ['0.01', '0.01000000'],
+            'min plus one' => ['1.01', '1.01000000'],
+            'max minus one' => ['999999.99', '999999.99000000'],
+            'max boundary' => ['1000000', '1000000.00000000'],
+        ];
+    }
+
     #[DataProvider('invalidCreditPayloads')]
     public function test_invalid_admin_credit_payload_is_rejected(array $payload): void
     {

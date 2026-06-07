@@ -58,6 +58,14 @@ class PaymentWebhookControllerTest extends TestCase
             ->assertUnauthorized();
     }
 
+    public function test_missing_signature_is_rejected(): void
+    {
+        $this->fakePaymentGateway();
+
+        $this->postJson('/api/v1/payments/webhook', ['event' => 'invoice.paid'])
+            ->assertUnauthorized();
+    }
+
     public function test_unknown_invoice_reference_is_rejected(): void
     {
         $gateway = $this->fakePaymentGateway();

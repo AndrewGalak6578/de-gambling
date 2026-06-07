@@ -52,6 +52,25 @@ class WalletControllerTest extends TestCase
         ]);
     }
 
+    #[DataProvider('validDepositBoundaryAmounts')]
+    public function test_valid_deposit_boundary_amounts_are_accepted(string $amount): void
+    {
+        $this->fakePaymentGateway();
+
+        $this->actingAs(User::factory()->create())
+            ->postJson('/api/v1/wallet/deposit', ['amount_usd' => $amount, 'coin' => 'btc'])
+            ->assertCreated()
+            ->assertJsonPath('deposit_invoice.status', 'pending');
+    }
+
+    public static function validDepositBoundaryAmounts(): array
+    {
+        return [
+            'min boundary' => ['0.01'],
+            'min plus one' => ['1.01'],
+        ];
+    }
+
     #[DataProvider('invalidDepositAmounts')]
     public function test_invalid_deposit_amount_is_rejected(mixed $amount): void
     {
@@ -101,6 +120,29 @@ class WalletControllerTest extends TestCase
             'status' => TransactionStatus::Pending->value,
             'amount' => '25.00000000',
         ]);
+    }
+
+    #[DataProvider('validWithdrawalBoundaryAmounts')]
+    public function test_valid_withdrawal_boundary_amounts_are_accepted(string $amount): void
+    {
+        $user = User::factory()->create();
+        Wallet::factory()->for($user)->create(['balance' => '100.00000000']);
+
+        $this->actingAs($user)
+            ->postJson('/api/v1/wallet/withdraw', [
+                'amount' => $amount,
+                'destination' => 'bc1qdestination',
+            ])
+            ->assertAccepted()
+            ->assertJsonPath('withdrawal.status', TransactionStatus::Pending->value);
+    }
+
+    public static function validWithdrawalBoundaryAmounts(): array
+    {
+        return [
+            'min boundary' => ['0.01'],
+            'min plus one' => ['1.01'],
+        ];
     }
 
     public function test_withdrawal_with_insufficient_balance_is_rejected(): void

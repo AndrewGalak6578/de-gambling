@@ -87,6 +87,38 @@ class AdminRiskControllerTest extends TestCase
         ]);
     }
 
+    #[DataProvider('validRiskOverrideBoundaryScores')]
+    public function test_valid_risk_override_boundary_scores_are_accepted(int $score): void
+    {
+        $admin = $this->adminUser();
+        $user = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->patchJson("/api/v1/admin/users/{$user->id}/risk-override", [
+                'score_adjustment' => $score,
+                'disabled' => false,
+                'reason' => 'Boundary score.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('override.score_adjustment', $score);
+
+        $this->assertDatabaseHas('risk_score_overrides', [
+            'user_id' => $user->id,
+            'score_adjustment' => $score,
+            'disabled' => false,
+        ]);
+    }
+
+    public static function validRiskOverrideBoundaryScores(): array
+    {
+        return [
+            'min boundary' => [-100],
+            'min plus one' => [-99],
+            'max minus one' => [99],
+            'max boundary' => [100],
+        ];
+    }
+
     #[DataProvider('invalidRiskOverridePayloads')]
     public function test_invalid_risk_override_payload_is_rejected(array $payload): void
     {
@@ -102,8 +134,10 @@ class AdminRiskControllerTest extends TestCase
     {
         return [
             'missing score' => [['disabled' => false]],
+            'extreme min' => [['score_adjustment' => -1000, 'disabled' => false]],
             'below min' => [['score_adjustment' => -101, 'disabled' => false]],
             'above max' => [['score_adjustment' => 101, 'disabled' => false]],
+            'extreme max' => [['score_adjustment' => 1000, 'disabled' => false]],
             'non integer score' => [['score_adjustment' => '10.5', 'disabled' => false]],
             'missing disabled' => [['score_adjustment' => 0]],
             'invalid disabled' => [['score_adjustment' => 0, 'disabled' => 'not_bool']],
