@@ -76,4 +76,59 @@ class UserModuleTest extends TestCase
             'email' => 'updated@test.com',
         ]);
     }
+
+    public function test_user_can_create_self_exclusion(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->postJson('/api/v1/user/self-exclusion', [
+                'days' => 30,
+                'reason' => 'Taking a break from gambling.',
+            ]);
+
+        $response->assertStatus(201);
+    }
+
+    public function test_self_exclusion_rejects_zero_days(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->postJson('/api/v1/user/self-exclusion', [
+                'days' => 0,
+            ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_self_exclusion_rejects_more_than_365_days(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->postJson('/api/v1/user/self-exclusion', [
+                'days' => 366,
+            ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_user_can_update_restrictions(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->patchJson('/api/v1/user/restrictions', [
+                'daily_deposit_limit' => 100,
+                'daily_bet_limit' => 50,
+                'daily_loss_limit' => 25,
+            ]);
+
+        $response->assertStatus(200);
+    }
 }
