@@ -6,6 +6,7 @@ import AdminPage from './pages/AdminPage.vue';
 import DashboardPage from './pages/DashboardPage.vue';
 import GamePlayPage from './pages/GamePlayPage.vue';
 import GamesPage from './pages/GamesPage.vue';
+import HistoryPage from './pages/HistoryPage.vue';
 import LoginPage from './pages/LoginPage.vue';
 import ProfilePage from './pages/ProfilePage.vue';
 import RegisterPage from './pages/RegisterPage.vue';
@@ -27,6 +28,7 @@ const pageComponent = computed(() => {
         wallet: WalletPage,
         games: GamesPage,
         'game-play': GamePlayPage,
+        history: HistoryPage,
         profile: ProfilePage,
         admin: AdminPage,
     }[route.page] || DashboardPage;

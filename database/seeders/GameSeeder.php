@@ -31,5 +31,30 @@ class GameSeeder extends Seeder
                 'sectors' => 8,
             ],
         ]);
+
+        Game::updateOrCreate(['slug' => 'slots'], [
+            'name' => 'Royal Slots',
+            'status' => 'active',
+            'rtp_percentage' => '95.00',
+            'config' => [
+                'description' => 'Three-reel VIP slot. Match three symbols to win. Crown jackpot pays 1300x.',
+                'min_bet' => '0.10',
+                'max_bet' => '5000.00',
+                'reels' => 3,
+            ],
+        ]);
+
+        Game::updateOrCreate(['slug' => 'blackjack'], [
+            'name' => 'Blackjack',
+            'status' => 'active',
+            'rtp_percentage' => '99.50',
+            'config' => [
+                'description' => 'Classic 21. Beat the dealer without busting. Natural blackjack pays 3:2.',
+                'min_bet' => '1.00',
+                'max_bet' => '5000.00',
+                'decks' => 6,
+                'dealer_stand_on' => 17,
+            ],
+        ]);
     }
 }

@@ -12,6 +12,7 @@ use App\Modules\User\Controllers\SelfExclusionController;
 use App\Modules\User\Controllers\DashboardController;
 use App\Modules\Finance\Controllers\TransactionController;
 use App\Modules\Finance\Controllers\WalletController;
+use App\Modules\Game\Controllers\BetHistoryController;
 use App\Modules\Game\Controllers\GameController;
 use App\Modules\User\Controllers\AuthController;
 use App\Modules\User\Controllers\ProfileController;
@@ -45,7 +46,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/wallet/deposit', [TransactionController::class, 'deposit']);
         Route::post('/wallet/withdraw', [TransactionController::class, 'withdraw']);
 
+        Route::get('/user/bets', [BetHistoryController::class, 'index']);
+
         Route::get('/games', [GameController::class, 'index']);
+        Route::get('/games/{game}', [GameController::class, 'show']);
         Route::post('/games/{game}/bet', [GameController::class, 'bet']);
 
         Route::middleware('admin')->group(function () {
@@ -67,6 +71,10 @@ Route::prefix('v1')->group(function () {
             Route::patch('/admin/interventions/{intervention}/revoke', [AdminInterventionController::class, 'revoke']);
 
             Route::get('/admin/games', [AdminGameController::class, 'index']);
+            Route::get('/admin/games/{game}', [AdminGameController::class, 'show']);
+            Route::post('/admin/games', [AdminGameController::class, 'store']);
+            Route::put('/admin/games/{game}', [AdminGameController::class, 'update']);
+            Route::delete('/admin/games/{game}', [AdminGameController::class, 'destroy']);
             Route::patch('/admin/games/{game}/rtp', [AdminGameController::class, 'updateRtp']);
             Route::patch('/admin/games/{game}/status', [AdminGameController::class, 'updateStatus']);
         });
