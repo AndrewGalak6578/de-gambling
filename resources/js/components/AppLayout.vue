@@ -33,6 +33,7 @@ async function logout() {
             <button :class="['nav-item', { active: route.page === 'dashboard' }]" data-page="dashboard" @click="go('dashboard')"><AppIcon name="dashboard" /> Dashboard</button>
             <button :class="['nav-item', { active: route.page === 'wallet' }]" data-page="wallet" @click="go('wallet')"><AppIcon name="wallet" /> Wallet</button>
             <button :class="['nav-item', { active: route.page === 'games' || route.page === 'game-play' }]" data-page="games" @click="go('games')"><AppIcon name="games" /> Games</button>
+            <button :class="['nav-item', { active: route.page === 'history' }]" data-page="history" @click="go('history')"><AppIcon name="history" /> History</button>
             <button :class="['nav-item', { active: route.page === 'profile' }]" data-page="profile" @click="go('profile')"><AppIcon name="settings" /> Settings</button>
             <button v-if="session.isAdmin" :class="['nav-item', { active: route.page === 'admin' }]" data-page="admin" @click="go('admin')"><AppIcon name="admin" /> Admin</button>
         </nav>

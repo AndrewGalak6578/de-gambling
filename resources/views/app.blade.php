@@ -287,6 +287,7 @@ const icons={
   back:`<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>`,
   check:`<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`,
   x:`<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  history:`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
   dice:`<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.25"/><circle cx="12" cy="12" r="1.25"/><circle cx="16" cy="16" r="1.25"/><circle cx="8" cy="16" r="1.25"/><circle cx="16" cy="8" r="1.25"/></svg>`,
   wheel:`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="22"/><line x1="2" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="22" y2="12"/></svg>`,
   empty:`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>`
@@ -345,7 +346,12 @@ function showModal({title,description,inputLabel,inputValue,inputPlaceholder,con
 }
 
 /* ── Routing ── */
-function navigate(page,params={}){window.location.hash=page;renderPage(page,params)}
+function navigate(page,params={}){
+  let hash=page;
+  if(page==='game-play'&&params.gameId)hash='game-play/'+params.gameId;
+  else if(page==='game-play'&&params.gameId===undefined)hash='games';
+  window.location.hash=hash;renderPage(page,params)
+}
 function hasToken(){return!!token}
 
 function renderPage(page,params={}){
@@ -356,6 +362,7 @@ function renderPage(page,params={}){
     case'login':renderLogin(app);break;case'register':renderRegister(app);break;
     case'dashboard':renderDashboard(app);break;case'wallet':renderWallet(app);break;
     case'games':renderGames(app);break;case'game-play':renderGamePlay(app,params);break;
+    case'history':renderBetHistory(app);break;
     case'profile':renderProfile(app);break;case'admin':renderAdmin(app);break;
     default:renderDashboard(app)
   }
@@ -438,6 +445,7 @@ function renderLayout(app){app.innerHTML=`
     <button class="nav-item" data-page="dashboard" onclick="navigate('dashboard')">${icon('dashboard')} Dashboard</button>
     <button class="nav-item" data-page="wallet" onclick="navigate('wallet')">${icon('wallet')} Wallet</button>
     <button class="nav-item" data-page="games" onclick="navigate('games')">${icon('games')} Games</button>
+    <button class="nav-item" data-page="history" onclick="navigate('history')">${icon('history')} History</button>
     <button class="nav-item" data-page="profile" onclick="navigate('profile')">${icon('settings')} Settings</button>
     <button class="nav-item" data-page="admin" onclick="navigate('admin')" id="admin-nav" style="display:none">${icon('admin')} Admin</button>
   </nav>
@@ -583,6 +591,109 @@ async function renderGames(app){
   })
 }
 
+/* ── Bet History ── */
+function renderBetHistoryPageContent(content){
+  content.innerHTML='<div class="spinner"></div>';
+  const params=new URLSearchParams(window.location.search);
+  const currentGame=params.get('game_id')||'';
+  const currentStatus=params.get('status')||'';
+  
+  Promise.all([api('/user/bets'),api('/games')]).then(([betsData,gamesData])=>{
+    const games=Array.isArray(gamesData)?gamesData:(gamesData?.length!==undefined?gamesData:[]);
+    const bets=betsData?.data||[];
+    const meta=betsData?.meta||{};
+    
+    function loadPage(url){
+      if(!url)return;
+      fetch(url,{headers:{'Authorization':`Bearer ${token}`,'Accept':'application/json'}})
+        .then(r=>r.json()).then(d=>renderBetHistoryTable(d,games)).catch(()=>showToast('Failed to load page.','error'))
+    }
+    
+    function renderBetHistoryTable(data,games){
+      const bets=data?.data||[];
+      const meta=data?.meta||{};
+      const selectGame=document.getElementById('bh-game-filter');
+      const selectStatus=document.getElementById('bh-status-filter');
+      if(selectGame&&!selectGame.dataset.bound){
+        selectGame.dataset.bound='1';
+        selectGame.addEventListener('change',()=>{applyBetFilters()});
+      }
+      if(selectStatus&&!selectStatus.dataset.bound){
+        selectStatus.dataset.bound='1';
+        selectStatus.addEventListener('change',()=>{applyBetFilters()});
+      }
+      
+      const tbody=document.getElementById('bh-tbody');
+      if(!tbody)return;
+      
+      if(!bets.length){
+        tbody.innerHTML=`<tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted)">No bets found.</td></tr>`;
+        document.getElementById('bh-pagination').innerHTML='';
+        return
+      }
+      
+      tbody.innerHTML=bets.map(b=>{
+        const isWin=parseFloat(b.payout_amount)>0&&(b.status==='settled');
+        const badgeClass=isWin?'badge-green':'badge-red';
+        const badgeText=isWin?'Win':'Loss';
+        const gameName=b.game?.name||'--';
+        const sectorInfo=b.result?.landed_sector?`Sector ${b.result.landed_sector}`:'';
+        const rollInfo=b.result?.roll!==undefined?`Roll ${parseFloat(b.result.roll).toFixed(2)}`:'';
+        const resultDetail=sectorInfo||rollInfo||'--';
+        return `<tr>
+          <td class="font-mono text-xs">${b.id}</td>
+          <td class="font-semibold" style="color:var(--text-primary)">${esc(gameName)}</td>
+          <td class="font-mono text-xs gold-text">$${parseFloat(b.bet_amount).toFixed(2)}</td>
+          <td class="font-mono text-xs ${isWin?'text-green-400':'text-red-400'}">${isWin?'+':''}$${parseFloat(b.payout_amount).toFixed(2)}</td>
+          <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+          <td class="text-xs font-mono" style="color:var(--text-muted)">${resultDetail}</td>
+          <td class="text-xs" style="color:var(--text-muted)">${new Date(b.created_at).toLocaleString()}</td>
+        </tr>`
+      }).join('');
+      
+      renderBetPagination(meta)
+    }
+    
+    function renderBetPagination(meta){
+      const cont=document.getElementById('bh-pagination');if(!cont)return;
+      if(!meta||meta.last_page<=1){cont.innerHTML='';return}
+      let html='<div class="flex items-center justify-center gap-2 mt-4 text-xs" style="color:var(--text-muted)">';
+      if(meta.prev_page_url)html+=`<button onclick="bhLoadPage('${esc(meta.prev_page_url)}')" class="btn btn-ghost btn-sm">Previous</button>`;
+      html+=`<span>Page ${meta.current_page} of ${meta.last_page}</span>`;
+      if(meta.next_page_url)html+=`<button onclick="bhLoadPage('${esc(meta.next_page_url)}')" class="btn btn-gold btn-sm">Next</button>`;
+      html+='</div>';
+      cont.innerHTML=html
+    }
+    
+    window.bhLoadPage=loadPage;
+    window.applyBetFilters=function(){
+      const g=document.getElementById('bh-game-filter')?.value||'';
+      const s=document.getElementById('bh-status-filter')?.value||'';
+      const p=new URLSearchParams();if(g)p.set('game_id',g);if(s)p.set('status',s);
+      const qs=p.toString();const url=qs?`/api/v1/user/bets?${qs}`:'/api/v1/user/bets';
+      fetch(url,{headers:{'Authorization':`Bearer ${token}`,'Accept':'application/json'}})
+        .then(r=>r.json()).then(d=>renderBetHistoryTable(d,games)).catch(()=>showToast('Failed to filter.','error'))
+    };
+    
+    content.innerHTML=`
+    <div class="page-header"><h1 class="page-title gold-text">Bet History</h1><p class="page-subtitle">Review all your past bets with provably fair proof</p></div>
+    <div class="flex gap-3 mb-4 flex-wrap">
+      <div style="flex:1;min-width:160px"><label class="label">Game</label><select id="bh-game-filter" class="input"><option value="">All Games</option>${games.map(g=>`<option value="${g.id}" ${currentGame===String(g.id)?'selected':''}>${esc(g.name)}</option>`).join('')}</select></div>
+      <div style="flex:1;min-width:160px"><label class="label">Status</label><select id="bh-status-filter" class="input"><option value="">All Status</option><option value="settled" ${currentStatus==='settled'?'selected':''}>Settled</option><option value="pending" ${currentStatus==='pending'?'selected':''}>Pending</option></select></div>
+      <div style="display:flex;align-items:flex-end"><button onclick="applyBetFilters()" class="btn btn-gold">Apply Filters</button></div>
+    </div>
+    <div class="table-wrapper"><table><thead><tr><th>ID</th><th>Game</th><th>Bet</th><th>Payout</th><th>Result</th><th>Details</th><th>Date</th></tr></thead><tbody id="bh-tbody"><tr><td colspan="7" class="text-center py-4"><div class="spinner"></div></td></tr></tbody></table></div>
+    <div id="bh-pagination"></div>`;
+    
+    renderBetHistoryTable(betsData,games)
+  }).catch(()=>{content.innerHTML='<div class="empty-state"><p>Failed to load bet history.</p></div>'})
+}
+
+async function renderBetHistory(app){
+  renderLayout(app);const content=document.getElementById('page-content');
+  renderBetHistoryPageContent(content)
+}
+
 /* ── Game Play ── */
 async function renderGamePlay(app,params){
   renderLayout(app);const content=document.getElementById('page-content');
@@ -591,7 +702,13 @@ async function renderGamePlay(app,params){
   const game=games.find(g=>g.slug===params.gameId)||games[0];
   if(!game){content.innerHTML='<div class="empty-state"><p>Game not found.</p></div>';return}
   const walletData=await api('/wallet');const balance=walletData?.balance||'0.00';
-  const isDice=game.slug==='dice';
+  const isDice=game.slug==='dice',isSlots=game.slug==='slots',isBJ=game.slug==='blackjack';
+  const themeClass=isDice?'card-gold':'card-silver';
+  let gameUI='';
+  if(isDice)gameUI=renderDiceUI(game);
+  else if(isSlots)gameUI=renderSlotsUI(game);
+  else if(isBJ)gameUI=renderBlackjackUI(game);
+  else gameUI=renderSpinUI(game);
 
   content.innerHTML=`
   <div class="flex items-center gap-3 mb-6">
@@ -599,7 +716,7 @@ async function renderGamePlay(app,params){
     <h1 class="text-xl font-bold ${isDice?'gold-text':'silver-text'}">${game.name}</h1>
   </div>
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2"><div class="card ${isDice?'card-gold':'card-silver'}">${isDice?renderDiceUI(game):renderSpinUI(game)}</div></div>
+    <div class="lg:col-span-2"><div class="card ${themeClass}">${gameUI}</div></div>
     <div>
       <div class="card mb-4"><div class="stat-label">Balance</div><div class="text-2xl font-black gold-text mt-1" id="game-balance-display">$${parseFloat(balance).toFixed(2)}</div></div>
       <div class="card"><div class="stat-label mb-3">Recent Bets</div><div id="bet-history-list" class="space-y-3 text-xs font-mono max-h-60 overflow-y-auto"></div></div>
@@ -626,7 +743,7 @@ function renderDiceUI(game){return`
   </div>
   <div class="grid grid-cols-2 gap-4 mb-6">
     <div><label class="label">Bet Amount ($)</label><input id="dice-amount" type="number" value="10.00" min="0.10" max="5000" step="1.00" class="input"></div>
-    <div><label class="label">Client Seed</label><input id="dice-seed" type="text" value="${randomSeed()}" class="input font-mono text-xs"></div>
+    <div><label class="label">Client Seed</label><input id="dice-seed" type="text" value="${randomSeed()}" class="input font-mono text-xs" readonly></div>
   </div>
   <button onclick="placeDiceBet(${game.id})" id="dice-btn" class="btn btn-gold w-full py-3">Roll Dice</button>
   <div id="dice-proof" class="hidden mt-4"></div>`}
@@ -658,11 +775,40 @@ function renderSpinUI(game){
   </div>
   <div class="grid grid-cols-2 gap-4 mb-6">
     <div><label class="label">Bet Amount ($)</label><input id="spin-amount" type="number" value="10.00" min="0.10" max="5000" step="1.00" class="input"></div>
-    <div><label class="label">Client Seed</label><input id="spin-seed" type="text" value="${randomSeed()}" class="input font-mono text-xs"></div>
+    <div><label class="label">Client Seed</label><input id="spin-seed" type="text" value="${randomSeed()}" class="input font-mono text-xs" readonly></div>
   </div>
   <button onclick="placeSpinBet(${game.id})" id="spin-btn" class="btn btn-silver w-full py-3">Spin Wheel</button>
   <div id="spin-proof" class="hidden mt-4"></div>`
 }
+
+function renderSlotsUI(game){return`
+  <div class="text-center mb-6">
+    <div class="flex items-center justify-center gap-4 mb-3">
+      <div class="roll-display silver-text" id="slots-reel0" style="font-size:2.5rem">🍒</div>
+      <div class="roll-display silver-text" id="slots-reel1" style="font-size:2.5rem">🍋</div>
+      <div class="roll-display silver-text" id="slots-reel2" style="font-size:2.5rem">🔔</div>
+    </div>
+    <div id="slots-result" class="text-sm font-semibold mt-1" style="min-height:1.5rem;color:var(--text-muted)">Place your bet</div>
+  </div>
+  <div class="grid grid-cols-2 gap-4 mb-6">
+    <div><label class="label">Bet Amount ($)</label><input id="slots-amount" type="number" value="10.00" min="0.10" max="5000" step="1.00" class="input"></div>
+    <div><label class="label">Client Seed</label><input id="slots-seed" type="text" value="${randomSeed()}" class="input font-mono text-xs" readonly></div>
+  </div>
+  <button onclick="placeSlotsBet(${game.id})" id="slots-btn" class="btn btn-silver w-full py-3">Spin Reels</button>
+  <div id="slots-proof" class="hidden mt-4"></div>`}
+
+function renderBlackjackUI(game){return`
+  <div class="text-center mb-6">
+    <div class="mb-3"><span class="text-xs uppercase tracking-wide" style="color:var(--text-muted)">Player</span><div class="roll-display silver-text" id="bj-player" style="font-size:2rem">--</div></div>
+    <div><span class="text-xs uppercase tracking-wide" style="color:var(--text-muted)">Dealer</span><div class="roll-display silver-text" id="bj-dealer" style="font-size:2rem">--</div></div>
+    <div id="bj-result" class="text-sm font-semibold mt-2" style="min-height:1.5rem;color:var(--text-muted)">Place your bet</div>
+  </div>
+  <div class="grid grid-cols-2 gap-4 mb-6">
+    <div><label class="label">Bet Amount ($)</label><input id="bj-amount" type="number" value="10.00" min="0.10" max="5000" step="1.00" class="input"></div>
+    <div><label class="label">Client Seed</label><input id="bj-seed" type="text" value="${randomSeed()}" class="input font-mono text-xs" readonly></div>
+  </div>
+  <button onclick="placeBlackjackBet(${game.id})" id="bj-btn" class="btn btn-silver w-full py-3">Deal Cards</button>
+  <div id="bj-proof" class="hidden mt-4"></div>`}
 
 function randomSeed(){return Math.random().toString(36).substring(2,10)}
 
@@ -718,6 +864,48 @@ async function placeSpinBet(gameId){
       api('/wallet').then(w=>{if(w)document.getElementById('game-balance-display').textContent=`$${parseFloat(w.balance).toFixed(2)}`})
     },4500)
   },100)
+}
+
+/* ── Slots Bet Logic ── */
+const SLOTS_EMOJI=['🍒','🍋','🔔','⭐','💎','7️⃣','👑'];
+
+async function placeSlotsBet(gameId){
+  const btn=document.getElementById('slots-btn'),amount=document.getElementById('slots-amount').value,clientSeed=document.getElementById('slots-seed').value;
+  btn.disabled=true;btn.textContent='Spinning...';
+  const interval=setInterval(()=>{for(let i=0;i<3;i++){const e=document.getElementById('slots-reel'+i);if(e)e.textContent=SLOTS_EMOJI[Math.floor(Math.random()*SLOTS_EMOJI.length)]}},100);
+  const data=await api(`/games/${gameId}/bet`,{method:'POST',body:JSON.stringify({bet_amount:amount,client_seed:clientSeed,payload:{}})});
+  clearInterval(interval);btn.disabled=false;btn.textContent='Spin Reels';
+  if(!data||data._status)return showToast(data?.message||'Spin failed.','error');
+  const s=data.outcome?.state,isWin=s?.is_win,reels=s?.reels||[];
+  for(let i=0;i<3;i++){const e=document.getElementById('slots-reel'+i);if(e&&reels[i]){const idx=SLOTS_EMOJI.findIndex((_,j)=>j===i||true);e.textContent=SLOTS_EMOJI[Math.min(Math.max(0,reels[i]==='cherry'?0:reels[i]==='lemon'?1:reels[i]==='bell'?2:reels[i]==='star'?3:reels[i]==='diamond'?4:reels[i]==='seven'?5:6),6)]}}
+  document.getElementById('slots-result').textContent=isWin?`Win! +$${parseFloat(data.bet.payout_amount).toFixed(2)} (${s?.match_type||''})`:'Lost';
+  document.getElementById('slots-result').style.color=isWin?'#4ade80':'#f87171';
+  if(data.bet.result?.server_seed){const p=document.getElementById('slots-proof');p.classList.remove('hidden');p.innerHTML=`<div class="p-3 rounded-lg text-xs font-mono break-all" style="background:var(--surface-1);border:1px solid var(--border-subtle);color:var(--text-muted);line-height:1.6">Reels: <span style="color:var(--text-primary)">${s?.reels?.join(', ')}</span><br>Match: <span style="color:var(--text-primary)">${s?.match_type||'none'}</span><br>Server: <span style="color:var(--text-primary)">${data.bet.result.server_seed}</span><br>Client: <span style="color:var(--text-primary)">${data.bet.client_seed}</span></div>`}
+  const h=document.getElementById('bet-history-list'),e=document.createElement('div');
+  e.className=`p-3 rounded flex items-center justify-between border-l-4 ${isWin?'border-green-500 text-green-400':'border-red-500 text-red-400'}`;e.style.background='var(--surface-1)';
+  e.innerHTML=`<span>#${data.bet.id} ${s?.reels?.join('|')||'--'}</span><span>${isWin?'+$'+parseFloat(data.bet.payout_amount).toFixed(2):'-$'+parseFloat(amount).toFixed(2)}</span>`;
+  h.prepend(e);if(h.children.length>12)h.removeChild(h.lastChild);
+  const w=await api('/wallet');if(w)document.getElementById('game-balance-display').textContent=`$${parseFloat(w.balance).toFixed(2)}`
+}
+
+/* ── Blackjack Bet Logic ── */
+async function placeBlackjackBet(gameId){
+  const btn=document.getElementById('bj-btn'),amount=document.getElementById('bj-amount').value,clientSeed=document.getElementById('bj-seed').value;
+  btn.disabled=true;btn.textContent='Dealing...';
+  const data=await api(`/games/${gameId}/bet`,{method:'POST',body:JSON.stringify({bet_amount:amount,client_seed:clientSeed,payload:{}})});
+  btn.disabled=false;btn.textContent='Deal Cards';
+  if(!data||data._status)return showToast(data?.message||'Deal failed.','error');
+  const s=data.outcome?.state,isWin=s?.is_win;
+  document.getElementById('bj-player').textContent=s?.player_score||'--';
+  document.getElementById('bj-dealer').textContent=s?.dealer_score||'--';
+  document.getElementById('bj-result').textContent=isWin?`Win! +$${parseFloat(data.bet.payout_amount).toFixed(2)}`:'Lost';
+  document.getElementById('bj-result').style.color=isWin?'#4ade80':'#f87171';
+  if(data.bet.result?.server_seed){const p=document.getElementById('bj-proof');p.classList.remove('hidden');p.innerHTML=`<div class="p-3 rounded-lg text-xs font-mono break-all" style="background:var(--surface-1);border:1px solid var(--border-subtle);color:var(--text-muted);line-height:1.6">Player: <span style="color:var(--text-primary)">${s?.player_card} (${s?.player_score})</span><br>Dealer: <span style="color:var(--text-primary)">${s?.dealer_card} (${s?.dealer_score})</span><br>Server: <span style="color:var(--text-primary)">${data.bet.result.server_seed}</span><br>Client: <span style="color:var(--text-primary)">${data.bet.client_seed}</span></div>`}
+  const h=document.getElementById('bet-history-list'),e=document.createElement('div');
+  e.className=`p-3 rounded flex items-center justify-between border-l-4 ${isWin?'border-green-500 text-green-400':'border-red-500 text-red-400'}`;e.style.background='var(--surface-1)';
+  e.innerHTML=`<span>#${data.bet.id} P:${s?.player_score} D:${s?.dealer_score}</span><span>${isWin?'+$'+parseFloat(data.bet.payout_amount).toFixed(2):'-$'+parseFloat(amount).toFixed(2)}</span>`;
+  h.prepend(e);if(h.children.length>12)h.removeChild(h.lastChild);
+  const w=await api('/wallet');if(w)document.getElementById('game-balance-display').textContent=`$${parseFloat(w.balance).toFixed(2)}`
 }
 
 /* ── Profile / Settings ── */
@@ -973,23 +1161,83 @@ async function handleRevokeIntervention(id){
 }
 
 async function renderAdminGames(content){
-  const data=await api('/admin/games');const games=data?.games||[];
-  content.innerHTML=`<div class="table-wrapper"><table><thead><tr><th>ID</th><th>Name</th><th>Slug</th><th>Status</th><th>RTP</th><th>Actions</th></tr></thead><tbody>
+  content.innerHTML='<div class="spinner"></div>';
+  const params=new URLSearchParams(window.location.search);
+  const currentStatus=params.get('status')||'';
+  const currentSearch=params.get('search')||'';
+  let query='';if(currentStatus)query+=`?status=${currentStatus}`;
+  const data=await api(`/admin/games${query}`);const games=data?.games||[];
+  content.innerHTML=`
+  <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+    <div class="flex gap-3 flex-wrap">
+      <div style="min-width:160px"><label class="label">Status</label><select id="ag-filter-status" class="input" onchange="applyAdminGamesFilter()"><option value="">All</option><option value="active" ${currentStatus==='active'?'selected':''}>Active</option><option value="inactive" ${currentStatus==='inactive'?'selected':''}>Inactive</option><option value="retired" ${currentStatus==='retired'?'selected':''}>Retired</option></select></div>
+      <div style="min-width:200px"><label class="label">Search</label><input id="ag-filter-search" type="text" class="input" value="${esc(currentSearch)}" placeholder="Name or slug..." onkeydown="if(event.key==='Enter')applyAdminGamesFilter()"></div>
+      <div style="display:flex;align-items:flex-end"><button onclick="applyAdminGamesFilter()" class="btn btn-ghost btn-sm">Filter</button></div>
+    </div>
+    <button onclick="adminCreateGame()" class="btn btn-gold">+ Add Game</button>
+  </div>
+  <div class="table-wrapper"><table><thead><tr><th>ID</th><th>Name</th><th>Slug</th><th>Status</th><th>RTP</th><th>Actions</th></tr></thead><tbody>
+  ${games.length===0?'<tr><td colspan="6" class="text-center py-4" style="color:var(--text-muted)">No games found.</td></tr>':''}
   ${games.map(g=>`<tr>
     <td class="font-mono text-xs">${g.id}</td>
-    <td class="font-semibold" style="color:var(--text-primary)">${g.name}</td>
+    <td class="font-semibold" style="color:var(--text-primary)">${esc(g.name)}</td>
     <td class="font-mono text-xs">${g.slug}</td>
-    <td><span class="badge badge-green">${g.status}</span></td>
-    <td class="font-mono font-bold" style="color:var(--text-primary)" id="rtp-${g.id}">${g.rtp_percentage}%</td>
-    <td class="flex gap-2"><button onclick="adminEditRtp(${g.id})" class="btn btn-gold btn-sm">Set RTP</button><button onclick="adminToggleStatus(${g.id},'${g.status}')" class="btn btn-ghost btn-sm">${g.status==='active'?'Deactivate':'Activate'}</button></td>
+    <td><span class="badge ${g.status==='active'?'badge-green':g.status==='inactive'?'badge-yellow':'badge-gray'}">${g.status}</span></td>
+    <td class="font-mono font-bold" style="color:var(--text-primary)" id="ag-rtp-${g.id}">${g.rtp_percentage}%</td>
+    <td><div class="flex gap-2 flex-wrap">
+      <button onclick="adminEditGame(${g.id})" class="btn btn-gold btn-sm">Edit</button>
+      <button onclick="adminEditRtp(${g.id})" class="btn btn-ghost btn-sm">RTP</button>
+      <button onclick="adminToggleStatus(${g.id},'${g.status}')" class="btn btn-ghost btn-sm">${g.status==='active'?'Deactivate':'Activate'}</button>
+      <button onclick="adminDeleteGame(${g.id},'${esc(g.name)}')" class="btn btn-danger btn-sm">Delete</button>
+    </div></td>
   </tr>`).join('')}</tbody></table></div>`
+}
+
+function applyAdminGamesFilter(){
+  const status=document.getElementById('ag-filter-status')?.value||'';
+  const search=document.getElementById('ag-filter-search')?.value||'';
+  const p=new URLSearchParams();if(status)p.set('status',status);if(search)p.set('search',search);
+  const qs=p.toString();const url=window.location.origin+window.location.pathname+(qs?'?'+qs:'');
+  window.history.replaceState({},'',url);
+  switchAdminTab('games')
+}
+
+async function adminCreateGame(){
+  showModal({title:'Create Game',description:'Enter the details for the new game.',showInput:true,inputLabel:'Game Name',inputPlaceholder:'e.g. Blackjack',confirmText:'Next',confirmClass:'btn-gold',onConfirm:async(name)=>{
+    if(!name)return showToast('Game name is required.','error');
+    const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    showModal({title:'Game Slug & RTP',description:`Configure "${name}" (slug: ${slug}).`,showInput:true,inputLabel:'RTP %',inputValue:'95.00',inputPlaceholder:'1-99.99',confirmText:'Create',confirmClass:'btn-gold',onConfirm:async(rtp)=>{
+      const rtpVal=parseFloat(rtp);if(!rtpVal||rtpVal<1||rtpVal>99.99)return showToast('RTP must be 1-99.99.','error');
+      const data=await api('/admin/games',{method:'POST',body:JSON.stringify({name,slug,rtp_percentage:rtpVal})});
+      if(data&&!data._status){showToast(`Game "${name}" created!`,'success');switchAdminTab('games')}
+      else showToast(data?.message||'Failed to create game.','error')
+    }})
+  }})
+}
+
+async function adminEditGame(gameId){
+  const data=await api(`/admin/games/${gameId}`);const game=data?.game;if(!game)return showToast('Game not found.','error');
+  showModal({title:'Edit Game',description:'Update game name and status.',showInput:true,inputLabel:'Game Name',inputValue:game.name,confirmText:'Save Name',confirmClass:'btn-gold',onConfirm:async(name)=>{
+    if(!name)return showToast('Name is required.','error');
+    const data2=await api(`/admin/games/${gameId}`,{method:'PUT',body:JSON.stringify({name,slug:game.slug})});
+    if(data2&&!data2._status){showToast('Game updated!','success');switchAdminTab('games')}
+    else showToast(data2?.message||'Failed.','error')
+  }})
+}
+
+async function adminDeleteGame(gameId,gameName){
+  showModal({title:`Delete "${gameName}"`,description:'This action is permanent and cannot be undone. All associated bets will remain.',confirmText:'Delete',confirmClass:'btn-danger',onConfirm:async()=>{
+    const data=await api(`/admin/games/${gameId}`,{method:'DELETE'});
+    if(data&&!data._status){showToast(`"${gameName}" deleted.`,'info');switchAdminTab('games')}
+    else showToast(data?.message||'Failed.','error')
+  }})
 }
 
 async function adminEditRtp(gameId){
   showModal({title:'Set RTP',description:'Enter the target RTP percentage (1-99.99).',showInput:true,inputLabel:'RTP %',inputPlaceholder:'e.g. 95.00',confirmText:'Update',confirmClass:'btn-gold',onConfirm:async(val)=>{
     if(!val)return;
     const data=await api(`/admin/games/${gameId}/rtp`,{method:'PATCH',body:JSON.stringify({rtp_percentage:parseFloat(val)})});
-    if(data&&!data._status){showToast(`RTP updated to ${val}%`,'success');document.getElementById(`rtp-${gameId}`).textContent=`${parseFloat(val).toFixed(2)}%`}else showToast(data?.message||'Failed.','error')
+    if(data&&!data._status){showToast(`RTP updated to ${val}%`,'success');document.getElementById(`ag-rtp-${gameId}`).textContent=`${parseFloat(val).toFixed(2)}%`}else showToast(data?.message||'Failed.','error')
   }})
 }
 
