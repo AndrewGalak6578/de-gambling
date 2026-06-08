@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -24,6 +25,8 @@ use Illuminate\Support\Carbon;
 #[Fillable(['name', 'slug', 'status', 'rtp_percentage', 'config'])]
 class Game extends Model
 {
+    use HasFactory;
+
     /**
      * @return HasMany<Bet, $this>
      */
