@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import AppLayout from '../components/AppLayout.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { api } from '../services/api';
@@ -9,13 +9,37 @@ import { money } from '../utils/format';
 const balance = ref('0.00');
 const deposit = reactive({ amount_usd: '50', coin: 'btc', loading: false, result: null });
 const withdraw = reactive({ amount: '10', destination: '', provider_method: 'crypto', loading: false, result: null });
+let walletPollTimer = null;
+let walletPollInFlight = false;
 
-onMounted(load);
+onMounted(async () => {
+    await load();
+    walletPollTimer = window.setInterval(load, 8000);
+});
+
+onBeforeUnmount(() => {
+    if (walletPollTimer) window.clearInterval(walletPollTimer);
+});
 
 async function load() {
+    if (walletPollInFlight) return;
+    walletPollInFlight = true;
     const wallet = await api('/wallet');
-    balance.value = wallet?.balance || '0.00';
-    deposit.result = wallet?.last_deposit_invoice ? { deposit_invoice: wallet.last_deposit_invoice } : null;
+    walletPollInFlight = false;
+    if (!wallet || wallet._status) return;
+    balance.value = wallet.balance || '0.00';
+    deposit.result = wallet.last_deposit_invoice ? { deposit_invoice: wallet.last_deposit_invoice } : null;
+}
+
+function invoiceBadgeClass(status) {
+    if (status === 'paid') return 'badge-green';
+    if (status === 'fixated') return 'badge-blue';
+    return 'badge-yellow';
+}
+
+function invoiceStatusLabel(status) {
+    if (status === 'fixated') return 'payment seen';
+    return status || 'pending';
 }
 
 async function handleDeposit() {
@@ -57,7 +81,7 @@ async function handleWithdraw() {
                             <p class="text-sm font-semibold text-green-400 mb-2">Invoice Created</p>
                             <p class="text-xs" style="color:var(--text-muted)">Send: <strong style="color:var(--text-primary)">{{ deposit.result.deposit_invoice.amount_coin }} {{ deposit.result.deposit_invoice.coin.toUpperCase() }}</strong></p>
                             <p class="text-xs font-mono p-2 mt-2 rounded select-all break-all" style="background:var(--surface-0);border:1px solid var(--border-subtle);color:var(--text-primary)">{{ deposit.result.deposit_invoice.pay_address }}</p>
-                            <p class="text-xs mt-2" style="color:var(--text-muted)">Status: <span class="badge badge-yellow">{{ deposit.result.deposit_invoice.status }}</span></p>
+                            <p class="text-xs mt-2" style="color:var(--text-muted)">Status: <span :class="['badge', invoiceBadgeClass(deposit.result.deposit_invoice.status)]">{{ invoiceStatusLabel(deposit.result.deposit_invoice.status) }}</span></p>
                             <p class="text-xs mt-1" style="color:var(--text-muted)">Expires: {{ new Date(deposit.result.deposit_invoice.expires_at).toLocaleString() }}</p>
                         </template>
                     </div>
