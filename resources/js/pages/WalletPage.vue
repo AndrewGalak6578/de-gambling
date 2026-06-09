@@ -15,6 +15,7 @@ onMounted(load);
 async function load() {
     const wallet = await api('/wallet');
     balance.value = wallet?.balance || '0.00';
+    deposit.result = wallet?.last_deposit_invoice ? { deposit_invoice: wallet.last_deposit_invoice } : null;
 }
 
 async function handleDeposit() {
@@ -23,6 +24,7 @@ async function handleDeposit() {
     deposit.loading = false;
     deposit.result = data;
     if (!data || data._status) return showToast(data?.message || 'Deposit failed.', 'error');
+    await load();
     showToast('Invoice created!', 'success');
 }
 
@@ -82,4 +84,3 @@ async function handleWithdraw() {
         </div>
     </AppLayout>
 </template>
-

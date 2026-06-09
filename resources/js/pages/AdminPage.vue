@@ -17,6 +17,22 @@ const withdrawals = ref([]);
 const riskEvents = ref([]);
 const riskUsers = ref([]);
 const activeInterventions = ref([]);
+const financeOverview = ref(null);
+const activityOpen = ref({
+    users: true,
+    bets: true,
+    deposit_invoices: false,
+    withdrawals: false,
+    transactions: false,
+});
+const activityLimits = ref({
+    users: 10,
+    bets: 10,
+    deposit_invoices: 10,
+    withdrawals: 10,
+    transactions: 10,
+});
+const activityLimitOptions = [5, 10, 25, 50, 100];
 const selectedUserId = ref(null);
 const selectedRiskUserId = ref(null);
 const userInterventions = ref([]);
@@ -52,6 +68,7 @@ async function selectTab(tab) {
 async function loadTab(tab) {
     if (tab === 'users') await loadUsers();
     if (tab === 'withdrawals') await loadWithdrawals();
+    if (tab === 'activity') await loadFinanceOverview();
     if (tab === 'risk') await loadRisk();
     if (tab === 'interventions') await loadUserInterventions();
     if (tab === 'games') await loadGames();
@@ -67,6 +84,11 @@ async function loadUsers() {
 async function loadWithdrawals() {
     const data = await api('/admin/withdrawals');
     withdrawals.value = data?.withdrawals || [];
+}
+
+async function loadFinanceOverview() {
+    const data = await api('/admin/finance-overview');
+    financeOverview.value = data && !data._status ? data : null;
 }
 
 async function loadRisk() {
@@ -305,6 +327,25 @@ function details(intervention) {
         payload.revoke_reason ? `revoked: ${payload.revoke_reason}` : null,
     ].filter(Boolean);
 }
+
+function statusBadge(status) {
+    if (['confirmed', 'paid', 'forwarded', 'settled', 'active'].includes(status)) return 'badge-green';
+    if (['pending', 'fixated'].includes(status)) return 'badge-yellow';
+    if (['failed', 'rejected', 'cancelled', 'disabled'].includes(status)) return 'badge-red';
+    return 'badge-gray';
+}
+
+function toggleActivitySection(key) {
+    activityOpen.value[key] = !activityOpen.value[key];
+}
+
+function activityRows(key) {
+    return (financeOverview.value?.[key] || []).slice(0, Number(activityLimits.value[key] || 10));
+}
+
+function activityCount(key) {
+    return financeOverview.value?.[key]?.length || 0;
+}
 </script>
 
 <template>
@@ -314,7 +355,7 @@ function details(intervention) {
         <template v-else>
             <PageHeader title="Admin" subtitle="Management dashboard" />
             <div class="tabs">
-                <button v-for="tab in ['users', 'withdrawals', 'risk', 'interventions', 'games']" :key="tab" :class="['tab', { active: activeTab === tab }]" @click="selectTab(tab)">{{ tab[0].toUpperCase() + tab.slice(1) }}</button>
+                <button v-for="tab in ['users', 'activity', 'withdrawals', 'risk', 'interventions', 'games']" :key="tab" :class="['tab', { active: activeTab === tab }]" @click="selectTab(tab)">{{ tab[0].toUpperCase() + tab.slice(1) }}</button>
             </div>
 
             <div v-if="activeTab === 'users'">
@@ -356,6 +397,84 @@ function details(intervention) {
                     <td class="flex gap-2"><button class="btn btn-gold btn-sm" @click="approveWithdrawal(withdrawal.id)">Approve</button><button class="btn btn-ghost btn-sm" @click="rejectWithdrawal(withdrawal.id)">Reject</button></td>
                 </tr>
             </tbody></table></div>
+
+            <div v-if="activeTab === 'activity'">
+                <div v-if="!financeOverview" class="empty-state"><p>Finance activity could not be loaded.</p></div>
+                <template v-else>
+                    <div class="stats-grid mb-6">
+                        <div class="stat-card"><div class="stat-label">Users</div><div class="stat-value">{{ financeOverview.stats.users_count }}</div><div class="stat-sub">registered</div></div>
+                        <div class="stat-card"><div class="stat-label">Wallet Balance</div><div class="stat-value gold-text">${{ money(financeOverview.stats.wallet_balance_usd) }}</div><div class="stat-sub">total USD</div></div>
+                        <div class="stat-card"><div class="stat-label">Deposits</div><div class="stat-value">${{ money(financeOverview.stats.deposits_usd) }}</div><div class="stat-sub">{{ financeOverview.stats.pending_deposit_invoices_count }} pending invoices</div></div>
+                        <div class="stat-card"><div class="stat-label">Withdrawals</div><div class="stat-value">${{ money(financeOverview.stats.withdrawals_usd) }}</div><div class="stat-sub">{{ financeOverview.stats.pending_withdrawals_count }} pending</div></div>
+                        <div class="stat-card"><div class="stat-label">Bet Volume</div><div class="stat-value">${{ money(financeOverview.stats.bet_volume_usd) }}</div><div class="stat-sub">settled stakes</div></div>
+                        <div class="stat-card"><div class="stat-label">Payouts</div><div class="stat-value">${{ money(financeOverview.stats.payouts_usd) }}</div><div class="stat-sub">settled wins</div></div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                            <div><h3 class="font-bold">Users Overview</h3><p class="text-xs" style="color:var(--text-muted)">Showing {{ activityRows('users').length }} of {{ activityCount('users') }}</p></div>
+                            <div class="flex items-center gap-2"><select v-model.number="activityLimits.users" class="input" style="width:96px"><option v-for="limit in activityLimitOptions" :key="limit" :value="limit">{{ limit }}</option></select><button type="button" class="btn btn-ghost btn-sm" @click="toggleActivitySection('users')">{{ activityOpen.users ? 'Hide' : 'Show' }}</button></div>
+                        </div>
+                        <div v-if="activityOpen.users" class="table-wrapper"><table><thead><tr><th>ID</th><th>User</th><th>Status</th><th>Wallet</th><th>Bets</th><th>Transactions</th></tr></thead><tbody>
+                            <tr v-for="user in activityRows('users')" :key="user.id">
+                                <td class="font-mono text-xs">{{ user.id }}</td><td><div class="font-semibold" style="color:var(--text-primary)">{{ user.name }}</div><div class="font-mono text-xs" style="color:var(--text-muted)">{{ user.email }}</div></td><td><span :class="['badge', statusBadge(user.status)]">{{ user.status }}</span></td><td class="font-bold gold-text">${{ money(user.wallet_balance) }}</td><td class="font-mono text-xs">{{ user.bets_count }}</td><td class="font-mono text-xs">{{ user.transactions_count }}</td>
+                            </tr>
+                        </tbody></table></div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                            <div><h3 class="font-bold">User Bets</h3><p class="text-xs" style="color:var(--text-muted)">Showing {{ activityRows('bets').length }} of {{ activityCount('bets') }}</p></div>
+                            <div class="flex items-center gap-2"><select v-model.number="activityLimits.bets" class="input" style="width:96px"><option v-for="limit in activityLimitOptions" :key="limit" :value="limit">{{ limit }}</option></select><button type="button" class="btn btn-ghost btn-sm" @click="toggleActivitySection('bets')">{{ activityOpen.bets ? 'Hide' : 'Show' }}</button></div>
+                        </div>
+                        <div v-if="activityOpen.bets" class="table-wrapper"><table><thead><tr><th>ID</th><th>User</th><th>Game</th><th>Bet</th><th>Payout</th><th>Status</th><th>Date</th></tr></thead><tbody>
+                            <tr v-if="activityCount('bets') === 0"><td colspan="7" class="text-center py-4" style="color:var(--text-muted)">No bets yet</td></tr>
+                            <tr v-for="bet in activityRows('bets')" :key="bet.id">
+                                <td class="font-mono text-xs">{{ bet.id }}</td><td class="text-xs">{{ bet.user?.name || `#${bet.user_id}` }}</td><td class="text-xs">{{ bet.game?.name || `#${bet.game_id}` }}</td><td class="font-bold">${{ money(bet.bet_amount) }}</td><td class="font-bold gold-text">${{ money(bet.payout_amount) }}</td><td><span :class="['badge', statusBadge(bet.status)]">{{ bet.status }}</span></td><td class="text-xs">{{ new Date(bet.created_at).toLocaleString() }}</td>
+                            </tr>
+                        </tbody></table></div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                            <div><h3 class="font-bold">Deposit History</h3><p class="text-xs" style="color:var(--text-muted)">Showing {{ activityRows('deposit_invoices').length }} of {{ activityCount('deposit_invoices') }}</p></div>
+                            <div class="flex items-center gap-2"><select v-model.number="activityLimits.deposit_invoices" class="input" style="width:96px"><option v-for="limit in activityLimitOptions" :key="limit" :value="limit">{{ limit }}</option></select><button type="button" class="btn btn-ghost btn-sm" @click="toggleActivitySection('deposit_invoices')">{{ activityOpen.deposit_invoices ? 'Hide' : 'Show' }}</button></div>
+                        </div>
+                        <div v-if="activityOpen.deposit_invoices" class="table-wrapper"><table><thead><tr><th>ID</th><th>User</th><th>Expected USD</th><th>Coin</th><th>Address</th><th>Status</th><th>Created</th></tr></thead><tbody>
+                            <tr v-if="activityCount('deposit_invoices') === 0"><td colspan="7" class="text-center py-4" style="color:var(--text-muted)">No deposits yet</td></tr>
+                            <tr v-for="invoice in activityRows('deposit_invoices')" :key="invoice.id">
+                                <td class="font-mono text-xs">{{ invoice.id }}</td><td class="text-xs">{{ invoice.user?.name || `#${invoice.user_id}` }}</td><td class="font-bold gold-text">${{ money(invoice.expected_usd) }}</td><td class="font-mono text-xs">{{ invoice.coin?.toUpperCase() }}</td><td class="font-mono text-xs truncate" style="max-width:180px">{{ invoice.pay_address }}</td><td><span :class="['badge', statusBadge(invoice.status)]">{{ invoice.status }}</span></td><td class="text-xs">{{ new Date(invoice.created_at).toLocaleString() }}</td>
+                            </tr>
+                        </tbody></table></div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                            <div><h3 class="font-bold">Withdrawal History</h3><p class="text-xs" style="color:var(--text-muted)">Showing {{ activityRows('withdrawals').length }} of {{ activityCount('withdrawals') }}</p></div>
+                            <div class="flex items-center gap-2"><select v-model.number="activityLimits.withdrawals" class="input" style="width:96px"><option v-for="limit in activityLimitOptions" :key="limit" :value="limit">{{ limit }}</option></select><button type="button" class="btn btn-ghost btn-sm" @click="toggleActivitySection('withdrawals')">{{ activityOpen.withdrawals ? 'Hide' : 'Show' }}</button></div>
+                        </div>
+                        <div v-if="activityOpen.withdrawals" class="table-wrapper"><table><thead><tr><th>ID</th><th>User</th><th>Amount</th><th>Status</th><th>Destination</th><th>Date</th></tr></thead><tbody>
+                            <tr v-if="activityCount('withdrawals') === 0"><td colspan="6" class="text-center py-4" style="color:var(--text-muted)">No withdrawals yet</td></tr>
+                            <tr v-for="withdrawal in activityRows('withdrawals')" :key="withdrawal.id">
+                                <td class="font-mono text-xs">{{ withdrawal.id }}</td><td class="text-xs">{{ withdrawal.user?.name || `#${withdrawal.user_id}` }}</td><td class="font-bold gold-text">${{ money(withdrawal.amount) }}</td><td><span :class="['badge', statusBadge(withdrawal.status)]">{{ withdrawal.status }}</span></td><td class="font-mono text-xs truncate" style="max-width:180px">{{ withdrawal.meta?.destination || '--' }}</td><td class="text-xs">{{ new Date(withdrawal.created_at).toLocaleString() }}</td>
+                            </tr>
+                        </tbody></table></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                            <div><h3 class="font-bold">Ledger Transactions</h3><p class="text-xs" style="color:var(--text-muted)">Showing {{ activityRows('transactions').length }} of {{ activityCount('transactions') }}</p></div>
+                            <div class="flex items-center gap-2"><select v-model.number="activityLimits.transactions" class="input" style="width:96px"><option v-for="limit in activityLimitOptions" :key="limit" :value="limit">{{ limit }}</option></select><button type="button" class="btn btn-ghost btn-sm" @click="toggleActivitySection('transactions')">{{ activityOpen.transactions ? 'Hide' : 'Show' }}</button></div>
+                        </div>
+                        <div v-if="activityOpen.transactions" class="table-wrapper"><table><thead><tr><th>ID</th><th>User</th><th>Type</th><th>Amount</th><th>Status</th><th>Reason</th><th>Date</th></tr></thead><tbody>
+                            <tr v-if="activityCount('transactions') === 0"><td colspan="7" class="text-center py-4" style="color:var(--text-muted)">No transactions yet</td></tr>
+                            <tr v-for="transaction in activityRows('transactions')" :key="transaction.id">
+                                <td class="font-mono text-xs">{{ transaction.id }}</td><td class="text-xs">{{ transaction.user?.name || `#${transaction.user_id}` }}</td><td><span class="badge badge-blue">{{ transaction.type }}</span></td><td class="font-bold gold-text">${{ money(transaction.amount) }}</td><td><span :class="['badge', statusBadge(transaction.status)]">{{ transaction.status }}</span></td><td class="text-xs">{{ transaction.reason || '--' }}</td><td class="text-xs">{{ new Date(transaction.created_at).toLocaleString() }}</td>
+                            </tr>
+                        </tbody></table></div>
+                    </div>
+                </template>
+            </div>
 
             <div v-if="activeTab === 'risk'">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">

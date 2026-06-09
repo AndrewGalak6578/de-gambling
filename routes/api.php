@@ -2,6 +2,7 @@
 
 use App\Modules\Admin\Controllers\AdminGameController;
 use App\Modules\Admin\Controllers\UserManagementController;
+use App\Modules\Finance\Controllers\AdminFinanceOverviewController;
 use App\Modules\Finance\Controllers\AdminWithdrawalController;
 use App\Modules\Finance\Controllers\AdminWalletController;
 use App\Modules\Finance\Controllers\PaymentWebhookController;
@@ -61,6 +62,7 @@ Route::prefix('v1')->group(function () {
 
             Route::delete('/admin/users/{user}', [UserManagementController::class, 'destroy']);
             Route::post('/admin/users/{user}/wallet/credit', [AdminWalletController::class, 'credit']);
+            Route::get('/admin/finance-overview', AdminFinanceOverviewController::class);
 
             Route::get('/admin/withdrawals', [AdminWithdrawalController::class, 'index']);
             Route::patch('/admin/withdrawals/{transaction}/approve', [AdminWithdrawalController::class, 'approve']);

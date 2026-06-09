@@ -3,9 +3,11 @@
 namespace Tests\Feature\Finance;
 
 use App\Models\Intervention;
+use App\Models\DepositInvoice;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Modules\Finance\Enums\DepositInvoiceStatus;
 use App\Modules\Finance\Enums\TransactionStatus;
 use App\Modules\Finance\Enums\TransactionType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,6 +29,26 @@ class WalletControllerTest extends TestCase
             ->getJson('/api/v1/wallet')
             ->assertOk()
             ->assertJson(['currency' => 'USD', 'balance' => '123.45000000']);
+    }
+
+    public function test_wallet_returns_latest_deposit_invoice_with_current_status(): void
+    {
+        $user = User::factory()->create();
+        Wallet::factory()->for($user)->create(['balance' => '10.00000000']);
+        DepositInvoice::factory()->for($user)->create([
+            'status' => DepositInvoiceStatus::Pending->value,
+            'created_at' => now()->subHour(),
+        ]);
+        $latest = DepositInvoice::factory()->for($user)->create([
+            'status' => DepositInvoiceStatus::Paid->value,
+            'created_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->getJson('/api/v1/wallet')
+            ->assertOk()
+            ->assertJsonPath('last_deposit_invoice.id', $latest->id)
+            ->assertJsonPath('last_deposit_invoice.status', DepositInvoiceStatus::Paid->value);
     }
 
     public function test_unauthenticated_user_is_rejected_from_wallet(): void

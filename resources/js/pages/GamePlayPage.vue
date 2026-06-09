@@ -214,10 +214,66 @@ async function load() {
         payout: null, busy: false, betId: null, proof: null,
     });
 
+    if (game.value) await loadRecentBets();
     if (game.value?.slug === 'blackjack') await restorePendingBlackjack();
 
     loading.value = false;
     await nextTick(); mountAmbient();
+}
+
+async function loadRecentBets() {
+    if (!game.value) return;
+    const data = await api(`/user/bets?game_id=${game.value.id}&per_page=12&sort=created_at&direction=desc`);
+    const bets = data?.data || [];
+    history.value = bets.map(formatStoredBet);
+
+    if (game.value.slug === 'dice') {
+        dice.historyDots = bets
+            .filter((bet) => bet.result?.roll !== undefined)
+            .slice()
+            .reverse()
+            .map((bet) => ({
+                id: bet.id,
+                roll: Math.floor(Number(bet.result.roll) || 0),
+                isWin: Boolean(bet.result.is_win),
+            }))
+            .slice(-20);
+    }
+}
+
+function formatStoredBet(bet) {
+    const result = bet.result || {};
+    const betAmount = parseFloat(bet.bet_amount || 0);
+    const payoutAmount = parseFloat(bet.payout_amount || 0);
+    const isWin = payoutAmount > betAmount;
+    const isPush = payoutAmount > 0 && Math.abs(payoutAmount - betAmount) < 0.000001;
+
+    return {
+        id: bet.id,
+        text: storedBetText(bet, result),
+        amount: bet.status === 'pending' ? 'Pending' : isWin ? `+$${money(bet.payout_amount)}` : isPush ? 'Push' : `-$${money(bet.bet_amount)}`,
+        isWin,
+    };
+}
+
+function storedBetText(bet, result) {
+    if (game.value?.slug === 'dice' && result.roll !== undefined) {
+        return `#${bet.id} Roll: ${Number(result.roll).toFixed(2)}`;
+    }
+
+    if (game.value?.slug === 'slots' && Array.isArray(result.reels)) {
+        return `#${bet.id} ${result.reels.map((k) => SLOT_SYMBOLS[k]?.icon || k).join(' ')}`;
+    }
+
+    if (game.value?.slug === 'spin-to-win' && result.landed_sector !== undefined) {
+        return `#${bet.id} Sector ${result.landed_sector}`;
+    }
+
+    if (game.value?.slug === 'blackjack') {
+        return `#${bet.id} ${(result.status || bet.status).toUpperCase()} · ${describeHand(result.player_cards || [])}`;
+    }
+
+    return `#${bet.id} ${bet.status}`;
 }
 
 async function restorePendingBlackjack() {
